@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1440" />
+    <title>VastuFlow — Direction 3: Midnight Survey</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <style>
+        :root {
+            --base: #FAFAF8;
+            --surface: #FFFFFF;
+            --surface-2: #F5F4F0;
+            --surface-3: #EEECEA;
+            --border: #E2DFD8;
+            --border-bright: #CCC9BF;
+            --text-primary: #1C1A15;
+            --text-secondary: #7A7567;
+            --text-tertiary: #B0AB9E;
+            --accent-gold: #B8860B;
+            --accent-gold-light: #D4A017;
+            --accent-gold-pale: #FDF5E0;
+            --signal: #C49A0A;
+            --signal-bg: #FEF9E7;
+            --good: #3D7A4F;
+            --good-bg: #EBF5EE;
+            --warning: #B87333;
+            --warning-bg: #FDF3E7;
+            --critical: #A83232;
+            --critical-bg: #FCEAEA;
+            --shadow-sm: 0 1px 3px rgba(28, 26, 21, 0.06), 0 1px 2px rgba(28, 26, 21, 0.04);
+            --shadow-md: 0 4px 12px rgba(28, 26, 21, 0.08), 0 2px 4px rgba(28, 26, 21, 0.04);
+            --shadow-lg: 0 8px 24px rgba(28, 26, 21, 0.1), 0 4px 8px rgba(28, 26, 21, 0.06);
+            --font-display: 'Playfair Display', serif;
+            --font-serif: 'Cormorant Garamond', serif;
+            --font-mono: 'DM Mono', monospace;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 1440px;
+            height: 900px;
+            overflow: hidden;
+            background: var(--base);
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+            font-size: 12px;
+        }
+
+        /* ── DIRECTION BADGE ── */
+        .dir-badge {
+            position: fixed;
+            top: 14px;
+            right: 16px;
+            z-index: 999;
+            background: var(--text-primary);
+            color: var(--base);
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 500;
+            letter-spacing: 0.14em;
+            padding: 4px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+
+        /* ── TOP BAR ── */
+        .step-bar {
+            height: 52px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            gap: 0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .step-bar-brand {
+            font-family: var(--font-display);
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-right: 32px;
+            white-space: nowrap;
+            letter-spacing: 0.04em;
+        }
+
+        .step-bar-brand span {
+            color: var(--accent-gold);
+        }
+
+        .steps {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            gap: 0;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            gap: 6px;
+        }
+
+        .step-node {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 500;
+            font-family: var(--font-mono);
+            border: 1.5px solid var(--border-bright);
+            color: var(--text-tertiary);
+            background: var(--surface);
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+
+        .step.done .step-node {
+            background: var(--accent-gold-pale);
+            border-color: var(--accent-gold-light);
+            color: var(--accent-gold);
+        }
+
+        .step.active .step-node {
+            background: var(--text-primary);
+            border-color: var(--text-primary);
+            color: var(--base);
+            box-shadow: 0 0 0 3px rgba(28, 26, 21, 0.08);
+        }
+
+        .step-label {
+            font-size: 8px;
+            color: var(--text-tertiary);
+            font-weight: 400;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            font-family: var(--font-mono);
+        }
+
+        .step.done .step-label {
+            color: var(--accent-gold);
+        }
+
+        .step.active .step-label {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .step-connector {
+            height: 1px;
+            width: 12px;
+            background: var(--border);
+            flex-shrink: 0;
+            margin: 0 4px;
+        }
+
+        .step-connector.done {
+            background: var(--accent-gold-light);
+            opacity: 0.4;
+        }
+
+        /* ── WORKSPACE ── */
+        .workspace {
+            display: flex;
+            height: calc(900px - 52px);
+        }
+
+        /* ── LEFT PANEL ── */
+        .tool-panel {
+            width: 264px;
+            flex-shrink: 0;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 2px 0 8px rgba(28, 26, 21, 0.03);
+        }
+
+        .panel-section {
+            border-bottom: 1px solid var(--border);
+            padding: 14px 16px;
+        }
+
+        .panel-section-title {
+            font-size: 8px;
+            font-weight: 500;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            margin-bottom: 10px;
+            font-family: var(--font-mono);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .panel-section-title::before {
+            content: '';
+            display: block;
+            width: 16px;
+            height: 1px;
+            background: var(--border-bright);
+        }
+
+        .upload-success {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .upload-thumb {
+            width: 40px;
+            height: 40px;
+            background: var(--accent-gold-pale);
+            border: 1px solid rgba(184, 134, 11, 0.2);
+            border-radius: 6px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .upload-thumb svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .upload-name {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+        }
+
+        .upload-meta {
+            font-size: 9px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+            font-family: var(--font-mono);
+        }
+
+        .status-loaded {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 8px;
+            color: var(--good);
+            font-weight: 500;
+            margin-top: 3px;
+            font-family: var(--font-mono);
+        }
+
+        .status-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--good);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 7px 14px;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1.5px solid transparent;
+            border-radius: 6px;
+            transition: all 0.12s;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .btn-primary {
+            background: var(--text-primary);
+            color: var(--base);
+            border-color: var(--text-primary);
+            width: 100%;
+            margin-top: 8px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-primary:hover {
+            background: #2A2820;
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+            border-color: var(--border-bright);
+            width: 100%;
+            margin-top: 6px;
+        }
+
+        .btn-ghost:hover {
+            background: var(--surface-2);
+            color: var(--text-primary);
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .info-label {
+            font-size: 9px;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            letter-spacing: 0.06em;
+        }
+
+        .info-value {
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--accent-gold);
+            font-variant-numeric: tabular-nums;
+            font-family: var(--font-mono);
+        }
+
+        .slider-wrap {
+            margin-bottom: 12px;
+        }
+
+        .slider-track {
+            height: 3px;
+            background: var(--surface-3);
+            border-radius: 2px;
+            position: relative;
+        }
+
+        .slider-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-gold-light), var(--accent-gold));
+            border-radius: 2px;
+        }
+
+        .slider-thumb {
+            position: absolute;
+            top: -5px;
+            width: 13px;
+            height: 13px;
+            background: var(--surface);
+            border: 2px solid var(--accent-gold);
+            border-radius: 50%;
+            transform: translateX(-50%);
+            box-shadow: var(--shadow-sm);
+        }
+
+        /* Active section highlight */
+        .panel-section.active-section {
+            background: linear-gradient(135deg, #FFFEF9 0%, var(--surface) 100%);
+            border-left: 3px solid var(--accent-gold);
+            padding-left: 13px;
+        }
+
+        .point-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--accent-gold-pale);
+            border: 1px solid rgba(184, 134, 11, 0.25);
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 9px;
+            color: var(--accent-gold);
+            font-weight: 500;
+            margin-bottom: 9px;
+            font-family: var(--font-mono);
+            letter-spacing: 0.06em;
+        }
+
+        .trace-hint {
+            font-size: 9px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            line-height: 1.7;
+            font-family: var(--font-mono);
+            background: var(--surface-2);
+            border-radius: 6px;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+        }
+
+        .trace-hint strong {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        /* ── LAYERS ── */
+        .layer-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .layer-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px 8px;
+            border-radius: 6px;
+            transition: background 0.1s;
+        }
+
+        .layer-row:hover {
+            background: var(--surface-2);
+        }
+
+        .layer-name {
+            font-size: 9px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: var(--font-mono);
+            letter-spacing: 0.04em;
+        }
+
+        .layer-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        .eye-btn {
+            width: 22px;
+            height: 22px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+
+        .eye-btn:hover {
+            background: var(--surface-3);
+            border-color: var(--border);
+        }
+
+        .eye-btn svg {
+            width: 11px;
+            height: 11px;
+        }
+
+        .eye-off {
+            opacity: 0.28;
+        }
+
+        /* ── CANVAS ── */
+        .canvas-area {
+            flex: 1;
+            background: #F7F6F2;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* Subtle graph paper grid */
+        .canvas-area::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(184, 134, 11, 0.06) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(184, 134, 11, 0.06) 1px, transparent 1px),
+                linear-gradient(rgba(184, 134, 11, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(184, 134, 11, 0.03) 1px, transparent 1px);
+            background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
+            pointer-events: none;
+        }
+
+        .canvas-area::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(28, 26, 21, 0.025) 100%);
+            pointer-events: none;
+        }
+
+        .canvas-toolbar {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            z-index: 10;
+        }
+
+        .canvas-btn {
+            width: 32px;
+            height: 32px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.1s;
+        }
+
+        .canvas-btn:hover {
+            background: var(--surface-2);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .canvas-btn svg {
+            width: 13px;
+            height: 13px;
+        }
+
+        .canvas-info-pill {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 5px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: var(--shadow-md);
+            font-family: var(--font-mono);
+            font-size: 9px;
+            color: var(--text-secondary);
+            letter-spacing: 0.06em;
+        }
+
+        .canvas-info-pill-dot {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: var(--border-bright);
+        }
+
+        .scale-bar {
+            position: absolute;
+            bottom: 24px;
+            right: 60px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .scale-line {
+            height: 8px;
+            width: 72px;
+            border-left: 1.5px solid var(--text-tertiary);
+            border-right: 1.5px solid var(--text-tertiary);
+            border-bottom: 1.5px solid var(--text-tertiary);
+        }
+
+        .scale-label {
+            font-size: 8px;
+            color: var(--text-tertiary);
+            font-family: var(--font-mono);
+        }
+
+        /* ── RIGHT PANEL ── */
+        .analysis-panel {
+            width: 300px;
+            flex-shrink: 0;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: -2px 0 8px rgba(28, 26, 21, 0.03);
+        }
+
+        .analysis-header {
+            padding: 18px 18px 14px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(135deg, var(--surface) 0%, var(--accent-gold-pale) 100%);
+        }
+
+        .analysis-title {
+            font-family: var(--font-display);
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: 0.02em;
+            margin-bottom: 2px;
+        }
+
+        .analysis-subtitle {
+            font-size: 9px;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            letter-spacing: 0.06em;
+        }
+
+        /* Score section */
+        .score-ring-wrap {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+        }
+
+        .score-ring {
+            position: relative;
+            width: 64px;
+            height: 64px;
+            flex-shrink: 0;
+        }
+
+        .score-ring svg {
+            width: 64px;
+            height: 64px;
+            transform: rotate(-90deg);
+            filter: drop-shadow(0 2px 6px rgba(184, 134, 11, 0.15));
+        }
+
+        .score-ring-label {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .score-num {
+            font-family: var(--font-display);
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .score-denom {
+            font-size: 8px;
+            color: var(--text-tertiary);
+            font-family: var(--font-mono);
+        }
+
+        .score-meta {
+            flex: 1;
+        }
+
+        .score-house {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+        }
+
+        .score-address {
+            font-size: 9px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+            margin-top: 2px;
+            font-family: var(--font-mono);
+        }
+
+        .score-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 6px;
+            font-size: 8px;
+            font-weight: 500;
+            color: var(--warning);
+            background: var(--warning-bg);
+            padding: 3px 8px;
+            border-radius: 20px;
+            border: 1px solid rgba(184, 115, 51, 0.2);
+            font-family: var(--font-mono);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        /* Zone table */
+        .zone-table-wrap {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .zone-table-header {
+            display: grid;
+            grid-template-columns: 52px 1fr 44px 60px;
+            padding: 6px 18px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: var(--surface-2);
+            z-index: 10;
+        }
+
+        .zone-table-header span {
+            font-size: 7px;
+            font-weight: 500;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--text-tertiary);
+            font-family: var(--font-mono);
+        }
+
+        .zone-row {
+            display: grid;
+            grid-template-columns: 52px 1fr 44px 60px;
+            padding: 7px 18px;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+            transition: background 0.1s;
+        }
+
+        .zone-row:hover {
+            background: var(--surface-2);
+        }
+
+        .zone-dir {
+            font-family: var(--font-display);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: 0.04em;
+        }
+
+        .zone-room {
+            font-size: 9px;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+        }
+
+        .zone-score {
+            font-size: 10px;
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
+            font-family: var(--font-mono);
+        }
+
+        .badge {
+            font-size: 7px;
+            font-weight: 500;
+            padding: 2px 7px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-family: var(--font-mono);
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+
+        .badge-good {
+            background: var(--good-bg);
+            color: var(--good);
+        }
+
+        .badge-warning {
+            background: var(--warning-bg);
+            color: var(--warning);
+        }
+
+        .badge-critical {
+            background: var(--critical-bg);
+            color: var(--critical);
+        }
+
+        .report-footer {
+            padding: 14px 18px;
+            border-top: 1px solid var(--border);
+            background: var(--surface);
+        }
+
+        .btn-report {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 11px 18px;
+            background: var(--text-primary);
+            color: var(--base);
+            border: none;
+            border-radius: 8px;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: var(--shadow-md);
+            transition: all 0.15s;
+        }
+
+        .btn-report:hover {
+            background: #2A2820;
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-1px);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--surface-2);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-bright);
+            border-radius: 2px;
+        }
+
+        /* Animations */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tool-panel,
+        .analysis-panel {
+            animation: fadeUp 0.3s ease;
+        }
+
+        /* Pulse on active vertex */
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.95);
+                opacity: 0.6;
+            }
+
+            70% {
+                transform: scale(1.15);
+                opacity: 0;
+            }
+
+            100% {
+                transform: scale(0.95);
+                opacity: 0;
+            }
+        }
+
+        .vertex-pulse {
+            animation: pulse-ring 2s ease-out infinite;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dir-badge">Direction 3 · Midnight Survey</div>
+
+    <!-- TOP STEP BAR -->
+    <div class="step-bar">
+        <div class="step-bar-brand">Vastu<span>Flow</span></div>
+        <div class="steps">
+            <div class="step done">
+                <div class="step-node">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M2 5l2.5 2.5L8 3" stroke="#B8860B" stroke-width="1.5" stroke-linecap="round" />
+                    </svg>
+                </div>
+                <span class="step-label">Upload</span>
+            </div>
+            <div class="step-connector done"></div>
+            <div class="step done">
+                <div class="step-node">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M2 5l2.5 2.5L8 3" stroke="#B8860B" stroke-width="1.5" stroke-linecap="round" />
+                    </svg>
+                </div>
+                <span class="step-label">Rotate</span>
+            </div>
+            <div class="step-connector done"></div>
+            <div class="step done">
+                <div class="step-node">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M2 5l2.5 2.5L8 3" stroke="#B8860B" stroke-width="1.5" stroke-linecap="round" />
+                    </svg>
+                </div>
+                <span class="step-label">Crop</span>
+            </div>
+            <div class="step-connector done"></div>
+            <div class="step done">
+                <div class="step-node">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <path d="M2 5l2.5 2.5L8 3" stroke="#B8860B" stroke-width="1.5" stroke-linecap="round" />
+                    </svg>
+                </div>
+                <span class="step-label">Scale</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step active">
+                <div class="step-node">5</div>
+                <span class="step-label">Trace</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">6</div><span class="step-label">Centroid</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">7</div><span class="step-label">Chakra</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">8</div><span class="step-label">Zones</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">9</div><span class="step-label">Analysis</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">10</div><span class="step-label">Report</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <!-- ── LEFT PANEL ── -->
+        <div class="tool-panel">
+            <!-- Floor Plan -->
+            <div class="panel-section">
+                <div class="panel-section-title">Floor Plan</div>
+                <div class="upload-success">
+                    <div class="upload-thumb">
+                        <svg viewBox="0 0 18 18" fill="none" stroke="#B8860B" stroke-width="1.3">
+                            <rect x="2" y="2" width="14" height="14" rx="1" />
+                            <path d="M2 12l3.5-3.5 2.5 2.5 3-4 4 5" />
+                            <circle cx="6" cy="6" r="1.5" fill="#D4A017" stroke="none" />
+                        </svg>
+                    </div>
+                    <div class="upload-info">
+                        <div class="upload-name">Sharma_Residence.jpg</div>
+                        <div class="upload-meta">3BHK · Andheri West · 2.4 MB</div>
+                        <div class="status-loaded">
+                            <div class="status-dot"></div>Loaded
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alignment -->
+            <div class="panel-section">
+                <div class="panel-section-title">Alignment</div>
+                <div class="info-row">
+                    <span class="info-label">Rotation</span>
+                    <span class="info-value">012.4°</span>
+                </div>
+                <div class="slider-wrap">
+                    <div class="slider-track">
+                        <div class="slider-fill" style="width:12%"></div>
+                        <div class="slider-thumb" style="left:12%"></div>
+                    </div>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Scale</span>
+                    <span class="info-value">0.032 m/px</span>
+                </div>
+                <div class="slider-wrap">
+                    <div class="slider-track">
+                        <div class="slider-fill" style="width:38%"></div>
+                        <div class="slider-thumb" style="left:38%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Trace -->
+            <div class="panel-section active-section">
+                <div class="panel-section-title" style="color: var(--accent-gold); letter-spacing:0.18em;">Active —
+                    Trace</div>
+                <div class="point-badge">
+                    <svg width="7" height="7" viewBox="0 0 7 7">
+                        <circle cx="3.5" cy="3.5" r="3.5" fill="#B8860B" />
+                    </svg>
+                    07 vertices placed
+                </div>
+                <div class="trace-hint">
+                    <strong>Click</strong> to add a boundary vertex<br />
+                    <strong>Min.</strong> 3 vertices required
+                </div>
+                <button class="btn btn-ghost">← Undo last vertex</button>
+                <button class="btn btn-primary">Close Polygon →</button>
+            </div>
+
+            <!-- Layers -->
+            <div class="panel-section" style="flex:1; overflow:auto;">
+                <div class="panel-section-title">Layers</div>
+                <div class="layer-list">
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot"
+                                style="background:#C49A0A;"></span>Background</span>
+                        <div class="eye-btn"><svg viewBox="0 0 11 11" fill="none" stroke="#7A7567" stroke-width="1.2">
+                                <path d="M1 5.5s1.8-3.5 4.5-3.5 4.5 3.5 4.5 3.5-1.8 3.5-4.5 3.5-4.5-3.5-4.5-3.5z" />
+                                <circle cx="5.5" cy="5.5" r="1.5" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot" style="background:#1C1A15;"></span>Trace</span>
+                        <div class="eye-btn"><svg viewBox="0 0 11 11" fill="none" stroke="#7A7567" stroke-width="1.2">
+                                <path d="M1 5.5s1.8-3.5 4.5-3.5 4.5 3.5 4.5 3.5-1.8 3.5-4.5 3.5-4.5-3.5-4.5-3.5z" />
+                                <circle cx="5.5" cy="5.5" r="1.5" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot"
+                                style="background:#8B6914;"></span>Centroid</span>
+                        <div class="eye-btn"><svg viewBox="0 0 11 11" fill="none" stroke="#7A7567" stroke-width="1.2">
+                                <path d="M1 5.5s1.8-3.5 4.5-3.5 4.5 3.5 4.5 3.5-1.8 3.5-4.5 3.5-4.5-3.5-4.5-3.5z" />
+                                <circle cx="5.5" cy="5.5" r="1.5" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name" style="opacity:0.4"><span class="layer-dot"
+                                style="background:#4A6A8A;"></span>Chakra</span>
+                        <div class="eye-btn eye-off"><svg viewBox="0 0 11 11" fill="none" stroke="#7A7567"
+                                stroke-width="1.2">
+                                <path
+                                    d="M1.5 1.5l8 8M1 4.5C2.4 2.8 4 2 5.5 2M8.5 3.5C9.5 4.5 10 5.5 10 5.5s-1.8 3.5-4.5 3.5c-.7 0-1.5-.2-2.2-.5" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name" style="opacity:0.4"><span class="layer-dot"
+                                style="background:#3D7A4F;"></span>Zones</span>
+                        <div class="eye-btn eye-off"><svg viewBox="0 0 11 11" fill="none" stroke="#7A7567"
+                                stroke-width="1.2">
+                                <path
+                                    d="M1.5 1.5l8 8M1 4.5C2.4 2.8 4 2 5.5 2M8.5 3.5C9.5 4.5 10 5.5 10 5.5s-1.8 3.5-4.5 3.5c-.7 0-1.5-.2-2.2-.5" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot"
+                                style="background:#B0AB9E;"></span>Labels</span>
+                        <div class="eye-btn"><svg viewBox="0 0 11 11" fill="none" stroke="#7A7567" stroke-width="1.2">
+                                <path d="M1 5.5s1.8-3.5 4.5-3.5 4.5 3.5 4.5 3.5-1.8 3.5-4.5 3.5-4.5-3.5-4.5-3.5z" />
+                                <circle cx="5.5" cy="5.5" r="1.5" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot"
+                                style="background:#CCC9BF;"></span>Controls</span>
+                        <div class="eye-btn"><svg viewBox="0 0 11 11" fill="none" stroke="#7A7567" stroke-width="1.2">
+                                <path d="M1 5.5s1.8-3.5 4.5-3.5 4.5 3.5 4.5 3.5-1.8 3.5-4.5 3.5-4.5-3.5-4.5-3.5z" />
+                                <circle cx="5.5" cy="5.5" r="1.5" />
+                            </svg></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── CANVAS ── -->
+        <div class="canvas-area">
+            <svg style="position:absolute; inset:16px; width:calc(100% - 32px); height:calc(100% - 32px);"
+                viewBox="0 0 840 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+                <!-- Floor plan (dark lines on light) -->
+                <g opacity="0.18">
+                    <rect x="160" y="100" width="500" height="600" stroke="#1C1A15" stroke-width="1.2" />
+                    <line x1="160" y1="300" x2="390" y2="300" stroke="#1C1A15" stroke-width="0.8" />
+                    <line x1="390" y1="100" x2="390" y2="500" stroke="#1C1A15" stroke-width="0.8" />
+                    <line x1="390" y1="500" x2="660" y2="500" stroke="#1C1A15" stroke-width="0.8" />
+                    <line x1="390" y1="300" x2="660" y2="300" stroke="#1C1A15" stroke-width="0.8" />
+                    <line x1="510" y1="100" x2="510" y2="300" stroke="#1C1A15" stroke-width="0.8" />
+                    <line x1="160" y1="500" x2="390" y2="500" stroke="#1C1A15" stroke-width="0.8" />
+                </g>
+
+                <!-- Shakti Chakra — 16 sectors -->
+                <g opacity="0.12">
+                    <circle cx="410" cy="400" r="225" stroke="#B8860B" stroke-width="1.5" />
+                    <circle cx="410" cy="400" r="130" stroke="#B8860B" stroke-width="1" />
+                    <line x1="410" y1="175" x2="410" y2="625" stroke="#B8860B" stroke-width="1" />
+                    <line x1="185" y1="400" x2="635" y2="400" stroke="#B8860B" stroke-width="1" />
+                    <line x1="251" y1="241" x2="569" y2="559" stroke="#B8860B" stroke-width="1" />
+                    <line x1="569" y1="241" x2="251" y2="559" stroke="#B8860B" stroke-width="1" />
+                    <line x1="410" y1="175" x2="569" y2="241" stroke="#B8860B" stroke-width="0.5" />
+                    <line x1="569" y1="241" x2="635" y2="400" stroke="#B8860B" stroke-width="0.5" />
+                    <line x1="635" y1="400" x2="569" y2="559" stroke="#B8860B" stroke-width="0.5" />
+                    <line x1="569" y1="559" x2="410" y2="625" stroke="#B8860B" stroke-width="0.5" />
+                    <line x1="410" y1="625" x2="251" y2="559" stroke="#B8860B" stroke-width="0.5" />
+                    <line x1="251" y1="559" x2="185" y2="400" stroke="#B8860B" stroke-width="0.5" />
+                    <line x1="185" y1="400" x2="251" y2="241" stroke="#B8860B" stroke-width="0.5" />
+                    <line x1="251" y1="241" x2="410" y2="175" stroke="#B8860B" stroke-width="0.5" />
+                </g>
+
+                <!-- Zone fills -->
+                <rect x="160" y="100" width="230" height="200" fill="rgba(61,122,79,0.06)" />
+                <rect x="390" y="100" width="270" height="200" fill="rgba(184,134,11,0.05)" />
+                <rect x="160" y="300" width="230" height="200" fill="rgba(61,122,79,0.04)" />
+                <rect x="390" y="300" width="270" height="200" fill="rgba(168,50,50,0.05)" />
+                <rect x="160" y="500" width="500" height="200" fill="rgba(61,122,79,0.04)" />
+
+                <!-- Trace polygon -->
+                <polygon points="160,100 660,100 660,500 510,500 510,700 160,700" stroke="#1C1A15" stroke-width="2"
+                    fill="rgba(184,134,11,0.04)" stroke-dasharray="7 3" />
+
+                <!-- Vertices -->
+                <circle cx="160" cy="100" r="6" fill="white" stroke="#1C1A15" stroke-width="2" />
+                <circle cx="660" cy="100" r="6" fill="white" stroke="#1C1A15" stroke-width="2" />
+                <circle cx="660" cy="500" r="6" fill="white" stroke="#1C1A15" stroke-width="2" />
+                <circle cx="510" cy="500" r="6" fill="white" stroke="#1C1A15" stroke-width="2" />
+                <circle cx="510" cy="700" r="6" fill="white" stroke="#1C1A15" stroke-width="2" />
+                <circle cx="160" cy="700" r="6" fill="white" stroke="#1C1A15" stroke-width="2" />
+
+                <!-- Active vertex pulse -->
+                <circle class="vertex-pulse" cx="160" cy="100" r="12" stroke="#1C1A15" stroke-width="1" fill="none"
+                    opacity="0.3" />
+
+                <!-- Direction labels -->
+                <text x="410" y="140" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9"
+                    fill="#7A7567" font-weight="500" letter-spacing="0.1em">N</text>
+                <text x="464" y="151" text-anchor="middle" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B0AB9E">NNE</text>
+                <text x="512" y="172" text-anchor="middle" font-family="'DM Mono',monospace" font-size="8"
+                    fill="#B0AB9E">NE</text>
+                <text x="558" y="206" text-anchor="start" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B0AB9E">ENE</text>
+                <text x="584" y="254" text-anchor="start" font-family="'DM Mono',monospace" font-size="8"
+                    fill="#7A7567">E</text>
+                <text x="577" y="315" text-anchor="start" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B0AB9E">ESE</text>
+                <text x="562" y="372" text-anchor="start" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B0AB9E">SE</text>
+                <text x="548" y="444" text-anchor="start" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B0AB9E">SSE</text>
+                <text x="410" y="655" text-anchor="middle" font-family="'DM Mono',monospace" font-size="9"
+                    fill="#7A7567" font-weight="500">S</text>
+                <text x="340" y="644" text-anchor="end" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B0AB9E">SSW</text>
+                <text x="276" y="605" text-anchor="end" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B0AB9E">SW</text>
+                <text x="240" y="558" text-anchor="end" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B0AB9E">WSW</text>
+                <text x="204" y="400" text-anchor="end" font-family="'DM Mono',monospace" font-size="8"
+                    fill="#7A7567">W</text>
+                <text x="218" y="314" text-anchor="end" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B0AB9E">WNW</text>
+                <text x="256" y="244" text-anchor="end" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B0AB9E">NW</text>
+                <text x="324" y="168" text-anchor="end" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B0AB9E">NNW</text>
+
+                <!-- Brahm Bindu (refined) -->
+                <circle cx="410" cy="400" r="28" stroke="#B8860B" stroke-width="0.5" fill="none" opacity="0.2" />
+                <circle cx="410" cy="400" r="18" stroke="#B8860B" stroke-width="1" fill="rgba(253,245,224,0.6)"
+                    opacity="0.8" />
+                <circle cx="410" cy="400" r="18" stroke="#B8860B" stroke-width="1.5" fill="none" />
+                <line x1="402" y1="400" x2="418" y2="400" stroke="#B8860B" stroke-width="1.5" />
+                <line x1="410" y1="392" x2="410" y2="408" stroke="#B8860B" stroke-width="1.5" />
+                <circle cx="410" cy="400" r="4.5" fill="#B8860B" />
+                <circle cx="410" cy="400" r="2" fill="white" />
+
+                <!-- Brahm Bindu label -->
+                <rect x="418" y="382" width="82" height="14" rx="3" fill="white" stroke="#E2DFD8" stroke-width="0.8" />
+                <text x="459" y="392" text-anchor="middle" font-family="'DM Mono',monospace" font-size="7"
+                    fill="#B8860B" font-weight="500" letter-spacing="0.1em">BRAHM BINDU</text>
+
+                <!-- Compass rose -->
+                <g transform="translate(740, 108)">
+                    <circle cx="0" cy="0" r="22" fill="white" stroke="#E2DFD8" stroke-width="1.5" />
+                    <polygon points="0,-15 -5,6 0,2 5,6" fill="#1C1A15" />
+                    <polygon points="0,15 -5,-6 0,-2 5,-6" fill="#CCC9BF" />
+                    <text x="0" y="33" text-anchor="middle" font-family="'DM Mono',monospace" font-size="8"
+                        fill="#7A7567" font-weight="500">N</text>
+                </g>
+            </svg>
+
+            <!-- Canvas toolbar -->
+            <div class="canvas-toolbar">
+                <div class="canvas-btn" title="Zoom in">
+                    <svg viewBox="0 0 13 13" fill="none" stroke="#7A7567" stroke-width="1.3">
+                        <circle cx="5.5" cy="5.5" r="4" />
+                        <path d="M8.5 8.5l3 3M5.5 3.5v4M3.5 5.5h4" />
+                    </svg>
+                </div>
+                <div class="canvas-btn" title="Zoom out">
+                    <svg viewBox="0 0 13 13" fill="none" stroke="#7A7567" stroke-width="1.3">
+                        <circle cx="5.5" cy="5.5" r="4" />
+                        <path d="M8.5 8.5l3 3M3.5 5.5h4" />
+                    </svg>
+                </div>
+                <div class="canvas-btn" title="Fit to view">
+                    <svg viewBox="0 0 13 13" fill="none" stroke="#7A7567" stroke-width="1.3">
+                        <path d="M2 5V2h3M8 2h3v3M11 8v3H8M5 11H2V8" />
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Bottom info pill -->
+            <div class="canvas-info-pill">
+                <span>07 vertices</span>
+                <div class="canvas-info-pill-dot"></div>
+                <span>Step 5 of 10</span>
+                <div class="canvas-info-pill-dot"></div>
+                <span>Sharma_Residence.jpg</span>
+            </div>
+
+            <div class="scale-bar">
+                <div class="scale-line"></div>
+                <span class="scale-label">2 metres</span>
+            </div>
+        </div>
+
+        <!-- ── RIGHT PANEL ── -->
+        <div class="analysis-panel">
+            <div class="analysis-header">
+                <div class="analysis-title">Vastu Analysis</div>
+                <div class="analysis-subtitle">Sharma Residence · 3BHK · Andheri West</div>
+            </div>
+
+            <div class="score-ring-wrap">
+                <div class="score-ring">
+                    <svg viewBox="0 0 64 64">
+                        <circle cx="32" cy="32" r="26" stroke="#F0EDE4" stroke-width="6" fill="none" />
+                        <circle cx="32" cy="32" r="26" stroke="#B8860B" stroke-width="6" fill="none"
+                            stroke-dasharray="111 163" stroke-linecap="round" />
+                    </svg>
+                    <div class="score-ring-label">
+                        <span class="score-num">68</span>
+                        <span class="score-denom">/100</span>
+                    </div>
+                </div>
+                <div class="score-meta">
+                    <div class="score-house">Sharma Residence</div>
+                    <div class="score-address">3BHK · Andheri West<br />Mumbai, Maharashtra</div>
+                    <div class="score-status">⚠ 3 deviations found</div>
+                </div>
+            </div>
+
+            <div class="zone-table-wrap">
+                <div class="zone-table-header">
+                    <span>Dir.</span><span>Room</span><span>Score</span><span>Status</span>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">N</div>
+                    <div class="zone-room">Living Rm</div>
+                    <div class="zone-score" style="color:var(--good);">9.2</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NE</div>
+                    <div class="zone-room">Puja Room</div>
+                    <div class="zone-score" style="color:var(--good);">9.8</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">E</div>
+                    <div class="zone-room">Master Bed</div>
+                    <div class="zone-score" style="color:var(--good);">8.4</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">SE</div>
+                    <div class="zone-room">Kitchen</div>
+                    <div class="zone-score" style="color:var(--good);">9.1</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">S</div>
+                    <div class="zone-room">Bedroom 2</div>
+                    <div class="zone-score" style="color:var(--warning);">6.2</div>
+                    <div><span class="badge badge-warning">Moderate</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">SW</div>
+                    <div class="zone-room">Master Bed</div>
+                    <div class="zone-score" style="color:var(--good);">8.7</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">W</div>
+                    <div class="zone-room">Bathroom</div>
+                    <div class="zone-score" style="color:var(--warning);">5.8</div>
+                    <div><span class="badge badge-warning">Moderate</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NW</div>
+                    <div class="zone-room">Guest Room</div>
+                    <div class="zone-score" style="color:var(--good);">7.6</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NNE</div>
+                    <div class="zone-room">Study</div>
+                    <div class="zone-score" style="color:var(--good);">8.1</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">ENE</div>
+                    <div class="zone-room">Balcony</div>
+                    <div class="zone-score" style="color:var(--good);">9.0</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">ESE</div>
+                    <div class="zone-room">Corridor</div>
+                    <div class="zone-score" style="color:var(--good);">7.3</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row" style="background: rgba(168,50,50,0.03);">
+                    <div class="zone-dir" style="color:var(--critical);">SSE</div>
+                    <div class="zone-room">Utility</div>
+                    <div class="zone-score" style="color:var(--critical);">4.9</div>
+                    <div><span class="badge badge-critical">Critical</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">SSW</div>
+                    <div class="zone-room">Storeroom</div>
+                    <div class="zone-score" style="color:var(--good);">7.8</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">WSW</div>
+                    <div class="zone-room">Passage</div>
+                    <div class="zone-score" style="color:var(--good);">8.0</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">WNW</div>
+                    <div class="zone-room">Toilet</div>
+                    <div class="zone-score" style="color:var(--warning);">5.5</div>
+                    <div><span class="badge badge-warning">Moderate</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NNW</div>
+                    <div class="zone-room">Terrace</div>
+                    <div class="zone-score" style="color:var(--good);">8.9</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+            </div>
+
+            <div class="report-footer">
+                <button class="btn-report">
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#FAFAF8" stroke-width="1.4">
+                        <path d="M2 1h6.5L10 2.5V11H2V1z" />
+                        <path d="M6.5 1v2.5H10" />
+                        <path d="M3.5 6h5M3.5 8h3" />
+                    </svg>
+                    Download PDF Report
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

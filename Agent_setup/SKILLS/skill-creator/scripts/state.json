@@ -1,0 +1,94 @@
+{
+  "_version": "1.0",
+  "_updated": "2026-02-18T15:15:45.704610+00:00",
+  "_product": "Kora",
+  "phase": "exploration",
+  "phase_history": [
+    {
+      "from": "idle",
+      "to": "exploration",
+      "at": "2026-02-18T15:15:35.368244+00:00"
+    },
+    {
+      "from": "exploration",
+      "to": "preview",
+      "at": "2026-02-18T15:15:35.369333+00:00"
+    },
+    {
+      "from": "preview",
+      "to": "approved",
+      "at": "2026-02-18T15:15:40.546201+00:00"
+    },
+    {
+      "from": "idle",
+      "to": "exploration",
+      "at": "2026-02-18T15:15:45.704604+00:00"
+    }
+  ],
+  "product_input": {
+    "name": "Kora",
+    "type": "mobile + web financial tool",
+    "core_problem": "freelancers lose thousands per year in missed deductions and manual bookkeeping chaos",
+    "target_audience": "independent designers, developers, and consultants earning 60k-200k/yr",
+    "emotional_words": [
+      "effortless",
+      "confident",
+      "clear"
+    ]
+  },
+  "positioning_brief": {
+    "problem_reframe": null,
+    "solution_feeling": null,
+    "audience_psychology": null,
+    "competitive_differentiation": null,
+    "visual_metaphor": null,
+    "emotional_expansion": null,
+    "ten_second_value": null
+  },
+  "design_directions": [],
+  "selected_direction": null,
+  "selection_source": "generated",
+  "design_system": {
+    "colors": {},
+    "typography": {},
+    "spacing": {},
+    "border_radius": null,
+    "shadows": {}
+  },
+  "layout": {
+    "archetype": null,
+    "hero_structure": null,
+    "section_sequence": [],
+    "grid_spec": {}
+  },
+  "motion": {
+    "personality": null,
+    "tokens_file": null
+  },
+  "implementation": {
+    "components_created": [],
+    "pages_created": [],
+    "directives_updated": []
+  },
+  "approval_gates": {
+    "design_approved": false,
+    "implementation_approved": false
+  },
+  "errors": [
+    {
+      "error": "Font not loading on Safari",
+      "layer": "layer_3",
+      "fix_applied": "Switched to next/font with display:swap",
+      "at": "2026-02-18T15:15:40.547100+00:00"
+    }
+  ],
+  "learnings": [
+    {
+      "learning": "Engineering manager audience responds better to monospace body fonts than humanist sans",
+      "phase": "approved",
+      "at": "2026-02-18T15:15:40.547685+00:00"
+    }
+  ],
+  "skills_loaded": [],
+  "skills_missing": []
+}

@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1440" />
+    <title>VastuFlow — Direction 4: Saffron Manuscript</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Yeseva+One&family=Nunito+Sans:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap"
+        rel="stylesheet" />
+    <style>
+        :root {
+            --base: #FBF6EE;
+            --surface: #F5EDD8;
+            --surface-2: #EFE4CC;
+            --border: #DBC99A;
+            --border-subtle: #E8D8B6;
+            --text-primary: #1A0F05;
+            --text-secondary: #7D6040;
+            --accent-1: #D4601A;
+            --accent-2: #8B6914;
+            --signal: #E8850A;
+            --canvas-bg: #FDF9F2;
+            --good: #4A7A3A;
+            --warning: #D4601A;
+            --critical: #8B2020;
+            --font-display: 'Yeseva One', serif;
+            --font-body: 'Nunito Sans', sans-serif;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 1440px;
+            height: 900px;
+            overflow: hidden;
+            background: var(--base);
+            font-family: var(--font-body);
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+
+        .dir-badge {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 999;
+            background: var(--accent-1);
+            color: var(--base);
+            font-family: var(--font-body);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            padding: 4px 12px;
+            border-radius: 24px;
+            text-transform: uppercase;
+        }
+
+        /* ── SCROLL METAPHOR STEP BAR ── */
+        .step-bar {
+            height: 60px;
+            background: var(--surface);
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 28px;
+            gap: 0;
+            position: relative;
+        }
+
+        /* Decorative manuscript border top */
+        .step-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--accent-1) 20%, var(--accent-2) 50%, var(--accent-1) 80%, transparent);
+        }
+
+        .step-bar-brand {
+            font-family: var(--font-display);
+            font-size: 24px;
+            color: var(--text-primary);
+            margin-right: 32px;
+            white-space: nowrap;
+            letter-spacing: 0.01em;
+        }
+
+        .step-bar-brand span {
+            color: var(--accent-1);
+        }
+
+        .steps {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            gap: 0;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .step-node {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            border: 2px solid var(--border);
+            color: var(--text-secondary);
+            background: var(--base);
+            transition: all 0.3s;
+        }
+
+        .step.done .step-node {
+            background: var(--accent-2);
+            border-color: var(--accent-2);
+            color: #fff;
+        }
+
+        .step.active .step-node {
+            background: var(--signal);
+            border-color: var(--signal);
+            color: #fff;
+            box-shadow: 0 0 0 4px rgba(232, 133, 10, 0.2), 0 3px 10px rgba(212, 96, 26, 0.35);
+        }
+
+        .step-label {
+            font-size: 8px;
+            color: var(--text-secondary);
+            margin-top: 3px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .step.active .step-label {
+            color: var(--accent-1);
+        }
+
+        .step-connector {
+            height: 2px;
+            width: 24px;
+            background: var(--border-subtle);
+            margin: 0 3px;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
+
+        /* ── WORKSPACE ── */
+        .workspace {
+            display: flex;
+            height: calc(900px - 60px);
+        }
+
+        /* ── LEFT TOOL DRAWER ── */
+        .tool-panel {
+            width: 300px;
+            flex-shrink: 0;
+            background: var(--surface);
+            border-right: 2px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Decorative side mark */
+        .tool-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(180deg, var(--accent-1) 0%, var(--accent-2) 50%, transparent 100%);
+            opacity: 0.4;
+        }
+
+        .panel-section {
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 14px 18px;
+        }
+
+        .panel-section-title {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .upload-success {
+            background: var(--base);
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            padding: 11px 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .upload-thumb {
+            width: 42px;
+            height: 42px;
+            background: var(--surface-2);
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .upload-thumb svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .upload-name {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .upload-meta {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-family: var(--font-body);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            border: 1.5px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: var(--accent-1);
+            color: #fff;
+            border-color: var(--accent-1);
+            width: 100%;
+            margin-top: 9px;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text-secondary);
+            border-color: var(--border);
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .info-label {
+            font-size: 10px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .info-value {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .slider-track {
+            height: 4px;
+            background: var(--border);
+            border-radius: 8px;
+            position: relative;
+            margin-bottom: 11px;
+        }
+
+        .slider-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            background: var(--accent-1);
+            border-radius: 8px;
+        }
+
+        .slider-thumb {
+            position: absolute;
+            top: -7px;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border: 2.5px solid var(--accent-1);
+            border-radius: 50%;
+            transform: translateX(-50%);
+            box-shadow: 0 2px 6px rgba(212, 96, 26, 0.25);
+        }
+
+        .point-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(212, 96, 26, 0.08);
+            border: 1.5px solid rgba(212, 96, 26, 0.3);
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 10px;
+            color: var(--accent-1);
+            font-weight: 700;
+            margin-bottom: 9px;
+        }
+
+        .layer-list {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .layer-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+
+        .layer-name {
+            font-size: 10px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .layer-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .eye-btn {
+            width: 24px;
+            height: 24px;
+            background: var(--base);
+            border: 1.5px solid var(--border);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .eye-btn svg {
+            width: 13px;
+            height: 13px;
+        }
+
+        .eye-off {
+            opacity: 0.3;
+        }
+
+        /* ── CANVAS ── */
+        .canvas-area {
+            flex: 1;
+            background: var(--canvas-bg);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .canvas-area::before {
+            content: '';
+            position: absolute;
+            inset: 24px;
+            border: 1.5px solid rgba(219, 201, 154, 0.4);
+            border-radius: 6px;
+            pointer-events: none;
+        }
+
+        .canvas-toolbar {
+            position: absolute;
+            top: 40px;
+            right: 36px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .canvas-btn {
+            width: 34px;
+            height: 34px;
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .canvas-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .scale-bar {
+            position: absolute;
+            bottom: 40px;
+            right: 56px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .scale-line {
+            height: 10px;
+            width: 80px;
+            border-left: 2px solid var(--text-secondary);
+            border-right: 2px solid var(--text-secondary);
+            border-bottom: 2px solid var(--text-secondary);
+        }
+
+        .scale-label {
+            font-size: 9px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        /* ── RIGHT ANALYSIS PANEL ── */
+        .analysis-panel {
+            width: 320px;
+            flex-shrink: 0;
+            background: var(--surface);
+            border-left: 2px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .analysis-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(180deg, var(--accent-1) 0%, var(--accent-2) 50%, transparent 100%);
+            opacity: 0.4;
+        }
+
+        .analysis-header {
+            padding: 16px 16px 12px;
+            border-bottom: 1.5px solid var(--border);
+        }
+
+        .analysis-title {
+            font-family: var(--font-display);
+            font-size: 20px;
+            color: var(--text-primary);
+            margin-bottom: 3px;
+        }
+
+        .analysis-subtitle {
+            font-size: 10px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .score-ring-wrap {
+            display: flex;
+            align-items: center;
+            gap: 13px;
+            padding: 13px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .score-ring {
+            position: relative;
+            width: 66px;
+            height: 66px;
+            flex-shrink: 0;
+        }
+
+        .score-ring svg {
+            width: 66px;
+            height: 66px;
+            transform: rotate(-90deg);
+        }
+
+        .score-ring-label {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .score-num {
+            font-family: var(--font-display);
+            font-size: 19px;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .score-denom {
+            font-size: 9px;
+            color: var(--text-secondary);
+        }
+
+        .score-meta {
+            flex: 1;
+        }
+
+        .score-house {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .score-address {
+            font-size: 10px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            margin-top: 2px;
+        }
+
+        .score-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 6px;
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--warning);
+            background: rgba(212, 96, 26, 0.1);
+            padding: 3px 9px;
+            border-radius: 20px;
+            border: 1.5px solid rgba(212, 96, 26, 0.3);
+        }
+
+        .zone-table-wrap {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .zone-table-header {
+            display: grid;
+            grid-template-columns: 72px 1fr 48px 60px;
+            padding: 6px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            position: sticky;
+            top: 0;
+            background: var(--surface);
+            z-index: 10;
+        }
+
+        .zone-table-header span {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+
+        .zone-row {
+            display: grid;
+            grid-template-columns: 72px 1fr 48px 60px;
+            padding: 7px 16px;
+            border-bottom: 1px solid rgba(219, 201, 154, 0.25);
+            align-items: center;
+        }
+
+        .zone-row:hover {
+            background: rgba(212, 96, 26, 0.04);
+        }
+
+        .zone-dir {
+            font-family: var(--font-display);
+            font-size: 11px;
+            color: var(--text-primary);
+        }
+
+        .zone-room {
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        .zone-score {
+            font-size: 11px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .badge {
+            font-size: 8px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 20px;
+            letter-spacing: 0.04em;
+        }
+
+        .badge-good {
+            background: rgba(74, 122, 58, 0.12);
+            color: var(--good);
+            border: 1.5px solid rgba(74, 122, 58, 0.3);
+        }
+
+        .badge-warning {
+            background: rgba(212, 96, 26, 0.12);
+            color: var(--warning);
+            border: 1.5px solid rgba(212, 96, 26, 0.3);
+        }
+
+        .badge-critical {
+            background: rgba(139, 32, 32, 0.1);
+            color: var(--critical);
+            border: 1.5px solid rgba(139, 32, 32, 0.3);
+        }
+
+        .report-footer {
+            padding: 13px 16px;
+            border-top: 1.5px solid var(--border);
+        }
+
+        .btn-report {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, var(--accent-1) 0%, #B8500F 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-family: var(--font-body);
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(212, 96, 26, 0.3);
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--surface);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="dir-badge">Direction 4 — Saffron Manuscript</div>
+
+    <!-- CEREMONIAL SCROLL STEP BAR -->
+    <div class="step-bar">
+        <div class="step-bar-brand">Vastu<span>Flow</span></div>
+        <div class="steps">
+            <div class="step done">
+                <div class="step-node">✓</div><span class="step-label">Upload</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step done">
+                <div class="step-node">✓</div><span class="step-label">Rotate</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step done">
+                <div class="step-node">✓</div><span class="step-label">Crop</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step done">
+                <div class="step-node">✓</div><span class="step-label">Scale</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step active">
+                <div class="step-node">5</div><span class="step-label">Trace</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">6</div><span class="step-label">Centroid</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">7</div><span class="step-label">Chakra</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">8</div><span class="step-label">Zones</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">9</div><span class="step-label">Analysis</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">10</div><span class="step-label">Report</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <!-- LEFT PANEL -->
+        <div class="tool-panel">
+            <div class="panel-section">
+                <div class="panel-section-title">Floor Plan</div>
+                <div class="upload-success">
+                    <div class="upload-thumb">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="#D4601A" stroke-width="1.4">
+                            <rect x="2" y="2" width="16" height="16" rx="2" />
+                            <path d="M2 13.5l4-4 3 3 3.5-4.5 5 5.5" />
+                            <circle cx="7" cy="7" r="1.8" fill="#D4601A" stroke="none" />
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="upload-name">Sharma Residence.jpg</div>
+                        <div class="upload-meta">3BHK · Andheri West, Mumbai</div>
+                        <div class="upload-meta" style="color:var(--good); font-weight:700;">✓ Loaded · 2.4 MB</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-section-title">Alignment & Scale</div>
+                <div class="info-row"><span class="info-label">North Rotation</span><span
+                        class="info-value">12.4°</span></div>
+                <div class="slider-track">
+                    <div class="slider-fill" style="width:12%"></div>
+                    <div class="slider-thumb" style="left:12%"></div>
+                </div>
+                <div class="info-row"><span class="info-label">Scale</span><span class="info-value">1px = 0.032 m</span>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-section-title" style="color:var(--accent-1);">◉ Trace Perimeter</div>
+                <div class="point-badge">🔶 7 boundary points placed</div>
+                <div style="font-size:10px; color:var(--text-secondary); margin-bottom:10px; line-height:1.6;">
+                    Click around the floor plan boundary to trace the perimeter polygon. Minimum 3 points to close.
+                </div>
+                <div class="btn btn-outline">↩ Undo Last Point</div>
+                <div class="btn btn-primary">Close Polygon ✓</div>
+            </div>
+
+            <div class="panel-section" style="flex:1; overflow:auto;">
+                <div class="panel-section-title">Canvas Layers</div>
+                <div class="layer-list">
+                    <div class="layer-row"><span class="layer-name"><span class="layer-dot"
+                                style="background:#D4601A;"></span>Background</span>
+                        <div class="eye-btn"><svg viewBox="0 0 13 13" fill="none" stroke="#7D6040" stroke-width="1.3">
+                                <path d="M1 6.5s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4z" />
+                                <circle cx="6.5" cy="6.5" r="1.7" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row"><span class="layer-name"><span class="layer-dot"
+                                style="background:#E8850A;"></span>Trace</span>
+                        <div class="eye-btn"><svg viewBox="0 0 13 13" fill="none" stroke="#7D6040" stroke-width="1.3">
+                                <path d="M1 6.5s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4z" />
+                                <circle cx="6.5" cy="6.5" r="1.7" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row"><span class="layer-name"><span class="layer-dot"
+                                style="background:#8B6914;"></span>Centroid</span>
+                        <div class="eye-btn"><svg viewBox="0 0 13 13" fill="none" stroke="#7D6040" stroke-width="1.3">
+                                <path d="M1 6.5s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4z" />
+                                <circle cx="6.5" cy="6.5" r="1.7" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row"><span class="layer-name"><span class="layer-dot"
+                                style="background:#7A8CA0;"></span>Chakra</span>
+                        <div class="eye-btn eye-off"><svg viewBox="0 0 13 13" fill="none" stroke="#7D6040"
+                                stroke-width="1.3">
+                                <path
+                                    d="M2 2l9 9M1 5.8C2.7 3.6 4.8 2 6.5 2M10.2 4.2C11.3 5.2 12 6.5 12 6.5s-2.2 4-5.5 4c-.7 0-1.5-.2-2.2-.6" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row"><span class="layer-name"><span class="layer-dot"
+                                style="background:#4A7A3A;"></span>Zones</span>
+                        <div class="eye-btn eye-off"><svg viewBox="0 0 13 13" fill="none" stroke="#7D6040"
+                                stroke-width="1.3">
+                                <path
+                                    d="M2 2l9 9M1 5.8C2.7 3.6 4.8 2 6.5 2M10.2 4.2C11.3 5.2 12 6.5 12 6.5s-2.2 4-5.5 4c-.7 0-1.5-.2-2.2-.6" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row"><span class="layer-name"><span class="layer-dot"
+                                style="background:#A08060;"></span>Labels</span>
+                        <div class="eye-btn"><svg viewBox="0 0 13 13" fill="none" stroke="#7D6040" stroke-width="1.3">
+                                <path d="M1 6.5s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4z" />
+                                <circle cx="6.5" cy="6.5" r="1.7" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row"><span class="layer-name"><span class="layer-dot"
+                                style="background:#DBC99A;"></span>Controls</span>
+                        <div class="eye-btn"><svg viewBox="0 0 13 13" fill="none" stroke="#7D6040" stroke-width="1.3">
+                                <path d="M1 6.5s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4z" />
+                                <circle cx="6.5" cy="6.5" r="1.7" />
+                            </svg></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CANVAS -->
+        <div class="canvas-area">
+            <svg style="position:absolute; inset:24px; width:calc(100% - 48px); height:calc(100% - 48px);"
+                viewBox="0 0 800 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Floor plan baseline (warm, faint) -->
+                <g opacity="0.15">
+                    <rect x="140" y="80" width="510" height="600" stroke="#D4601A" stroke-width="0.6" />
+                    <line x1="140" y1="290" x2="380" y2="290" stroke="#D4601A" stroke-width="0.5" />
+                    <line x1="380" y1="80" x2="380" y2="490" stroke="#D4601A" stroke-width="0.5" />
+                    <line x1="380" y1="490" x2="650" y2="490" stroke="#D4601A" stroke-width="0.5" />
+                    <line x1="380" y1="290" x2="650" y2="290" stroke="#D4601A" stroke-width="0.5" />
+                    <line x1="500" y1="80" x2="500" y2="290" stroke="#D4601A" stroke-width="0.5" />
+                    <line x1="140" y1="490" x2="380" y2="490" stroke="#D4601A" stroke-width="0.5" />
+                </g>
+
+                <!-- Shakti Chakra (saffron-warm on cream) -->
+                <g opacity="0.14">
+                    <circle cx="395" cy="380" r="215" stroke="#D4601A" stroke-width="1.2" />
+                    <circle cx="395" cy="380" r="125" stroke="#D4601A" stroke-width="0.7" />
+                    <!-- 8 main sectors -->
+                    <line x1="395" y1="165" x2="395" y2="595" stroke="#D4601A" stroke-width="0.8" />
+                    <line x1="180" y1="380" x2="610" y2="380" stroke="#D4601A" stroke-width="0.8" />
+                    <line x1="243" y1="228" x2="547" y2="532" stroke="#D4601A" stroke-width="0.8" />
+                    <line x1="547" y1="228" x2="243" y2="532" stroke="#D4601A" stroke-width="0.8" />
+                    <!-- 8 half-sector lines -->
+                    <line x1="395" y1="165" x2="547" y2="228" stroke="#D4601A" stroke-width="0.4" />
+                    <line x1="547" y1="228" x2="610" y2="380" stroke="#D4601A" stroke-width="0.4" />
+                    <line x1="610" y1="380" x2="547" y2="532" stroke="#D4601A" stroke-width="0.4" />
+                    <line x1="547" y1="532" x2="395" y2="595" stroke="#D4601A" stroke-width="0.4" />
+                    <line x1="395" y1="595" x2="243" y2="532" stroke="#D4601A" stroke-width="0.4" />
+                    <line x1="243" y1="532" x2="180" y2="380" stroke="#D4601A" stroke-width="0.4" />
+                    <line x1="180" y1="380" x2="243" y2="228" stroke="#D4601A" stroke-width="0.4" />
+                    <line x1="243" y1="228" x2="395" y2="165" stroke="#D4601A" stroke-width="0.4" />
+                </g>
+
+                <!-- Zone fills (manuscript ochre tones) -->
+                <g opacity="0.07">
+                    <rect x="140" y="80" width="240" height="210" fill="#4A7A3A" />
+                    <rect x="380" y="80" width="270" height="210" fill="#D4601A" />
+                    <rect x="140" y="290" width="240" height="200" fill="#4A7A3A" />
+                    <rect x="380" y="290" width="270" height="200" fill="#8B2020" />
+                    <rect x="140" y="490" width="510" height="190" fill="#4A7A3A" />
+                </g>
+
+                <!-- Trace polygon (saffron) -->
+                <polygon points="140,80 650,80 650,490 500,490 500,680 140,680" stroke="#E8850A" stroke-width="2.5"
+                    stroke-linejoin="round" fill="rgba(232,133,10,0.04)" stroke-dasharray="8 4" />
+                <circle cx="140" cy="80" r="6" fill="#E8850A" stroke="#FBF6EE" stroke-width="2" />
+                <circle cx="650" cy="80" r="6" fill="#E8850A" stroke="#FBF6EE" stroke-width="2" />
+                <circle cx="650" cy="490" r="6" fill="#E8850A" stroke="#FBF6EE" stroke-width="2" />
+                <circle cx="500" cy="490" r="6" fill="#E8850A" stroke="#FBF6EE" stroke-width="2" />
+                <circle cx="500" cy="680" r="6" fill="#E8850A" stroke="#FBF6EE" stroke-width="2" />
+                <circle cx="140" cy="680" r="6" fill="#E8850A" stroke="#FBF6EE" stroke-width="2" />
+                <circle cx="140" cy="80" r="11" stroke="#E8850A" stroke-width="1.5" fill="none" opacity="0.4" />
+
+                <!-- Zone labels -->
+                <text x="395" y="132" text-anchor="middle" font-family="'Nunito Sans',sans-serif" font-size="10"
+                    fill="#7D6040" font-weight="700">N</text>
+                <text x="452" y="142" text-anchor="middle" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#7D6040">NNE</text>
+                <text x="504" y="165" text-anchor="middle" font-family="'Nunito Sans',sans-serif" font-size="9"
+                    fill="#7D6040">NE</text>
+                <text x="548" y="200" text-anchor="start" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#7D6040">ENE</text>
+                <text x="572" y="248" text-anchor="start" font-family="'Nunito Sans',sans-serif" font-size="9"
+                    fill="#7D6040">E</text>
+                <text x="564" y="308" text-anchor="start" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#7D6040">ESE</text>
+                <text x="548" y="362" text-anchor="start" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#7D6040">SE</text>
+                <text x="534" y="435" text-anchor="start" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#7D6040">SSE</text>
+                <text x="395" y="636" text-anchor="middle" font-family="'Nunito Sans',sans-serif" font-size="10"
+                    fill="#7D6040" font-weight="700">S</text>
+                <text x="326" y="626" text-anchor="end" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#7D6040">SSW</text>
+                <text x="268" y="590" text-anchor="end" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#7D6040">SW</text>
+                <text x="232" y="544" text-anchor="end" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#7D6040">WSW</text>
+                <text x="204" y="380" text-anchor="end" font-family="'Nunito Sans',sans-serif" font-size="9"
+                    fill="#7D6040">W</text>
+                <text x="218" y="296" text-anchor="end" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#7D6040">WNW</text>
+                <text x="252" y="236" text-anchor="end" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#7D6040">NW</text>
+                <text x="316" y="162" text-anchor="end" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#7D6040">NNW</text>
+
+                <!-- Brahm Bindu (saffron warm) -->
+                <circle cx="395" cy="380" r="24" stroke="#E8850A" stroke-width="1.5" fill="none" opacity="0.25" />
+                <circle cx="395" cy="380" r="15" stroke="#E8850A" stroke-width="2" fill="none" opacity="0.55" />
+                <line x1="386" y1="380" x2="404" y2="380" stroke="#E8850A" stroke-width="1.5" />
+                <line x1="395" y1="371" x2="395" y2="389" stroke="#E8850A" stroke-width="1.5" />
+                <circle cx="395" cy="380" r="5.5" fill="#E8850A" />
+                <circle cx="395" cy="380" r="2.5" fill="#FBF6EE" />
+                <!-- Label -->
+                <rect x="402" y="362" width="80" height="15" rx="8" fill="#F5EDD8" stroke="#DBC99A" stroke-width="1" />
+                <text x="442" y="373" text-anchor="middle" font-family="'Nunito Sans',sans-serif" font-size="8"
+                    fill="#D4601A" font-weight="700">BRAHM BINDU</text>
+
+                <!-- North -->
+                <g transform="translate(720, 108)">
+                    <circle cx="0" cy="0" r="22" stroke="#DBC99A" stroke-width="1.5" fill="#F5EDD8" />
+                    <polygon points="0,-15 -6,8 0,4 6,8" fill="#D4601A" />
+                    <polygon points="0,15 -6,-8 0,-4 6,-8" fill="#DBC99A" opacity="0.5" />
+                    <text x="0" y="33" text-anchor="middle" font-family="'Nunito Sans',sans-serif" font-size="9"
+                        fill="#7D6040" font-weight="700">N</text>
+                </g>
+            </svg>
+
+            <div class="canvas-toolbar">
+                <div class="canvas-btn"><svg viewBox="0 0 16 16" fill="none" stroke="#7D6040" stroke-width="1.5">
+                        <circle cx="7" cy="7" r="4.5" />
+                        <path d="M10.5 10.5l3 3M7 5v4M5 7h4" />
+                    </svg></div>
+                <div class="canvas-btn"><svg viewBox="0 0 16 16" fill="none" stroke="#7D6040" stroke-width="1.5">
+                        <circle cx="7" cy="7" r="4.5" />
+                        <path d="M10.5 10.5l3 3M5 7h4" />
+                    </svg></div>
+                <div class="canvas-btn"><svg viewBox="0 0 16 16" fill="none" stroke="#7D6040" stroke-width="1.5">
+                        <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
+                    </svg></div>
+            </div>
+            <div class="scale-bar">
+                <div class="scale-line"></div>
+                <span class="scale-label">2 metres</span>
+            </div>
+        </div>
+
+        <!-- RIGHT ANALYSIS -->
+        <div class="analysis-panel">
+            <div class="analysis-header">
+                <div class="analysis-title">Vastu Analysis</div>
+                <div class="analysis-subtitle">Sharma Residence · 3BHK · Andheri West, Mumbai</div>
+            </div>
+            <div class="score-ring-wrap">
+                <div class="score-ring">
+                    <svg viewBox="0 0 66 66">
+                        <circle cx="33" cy="33" r="27" stroke="#DBC99A" stroke-width="5.5" fill="none" />
+                        <circle cx="33" cy="33" r="27" stroke="#D4601A" stroke-width="5.5" fill="none"
+                            stroke-dasharray="115 170" stroke-linecap="round" />
+                    </svg>
+                    <div class="score-ring-label">
+                        <span class="score-num">68</span><span class="score-denom">/100</span>
+                    </div>
+                </div>
+                <div class="score-meta">
+                    <div class="score-house">Sharma Residence</div>
+                    <div class="score-address">3BHK · Andheri West<br />Mumbai, Maharashtra</div>
+                    <div class="score-status">⚠ 3 deviations</div>
+                </div>
+            </div>
+            <div class="zone-table-wrap">
+                <div class="zone-table-header">
+                    <span>Direction</span><span>Room</span><span>Score</span><span>Status</span>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">N</div>
+                    <div class="zone-room">Living Room</div>
+                    <div class="zone-score" style="color:var(--good);">9.2</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NE</div>
+                    <div class="zone-room">Puja Room</div>
+                    <div class="zone-score" style="color:var(--good);">9.8</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">E</div>
+                    <div class="zone-room">Master Bed</div>
+                    <div class="zone-score" style="color:var(--good);">8.4</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">SE</div>
+                    <div class="zone-room">Kitchen</div>
+                    <div class="zone-score" style="color:var(--good);">9.1</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">S</div>
+                    <div class="zone-room">Bedroom 2</div>
+                    <div class="zone-score" style="color:var(--warning);">6.2</div>
+                    <div><span class="badge badge-warning">Moderate</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">SW</div>
+                    <div class="zone-room">Master Bed</div>
+                    <div class="zone-score" style="color:var(--good);">8.7</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">W</div>
+                    <div class="zone-room">Bathroom</div>
+                    <div class="zone-score" style="color:var(--warning);">5.8</div>
+                    <div><span class="badge badge-warning">Moderate</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NW</div>
+                    <div class="zone-room">Guest Room</div>
+                    <div class="zone-score" style="color:var(--good);">7.6</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NNE</div>
+                    <div class="zone-room">Study</div>
+                    <div class="zone-score" style="color:var(--good);">8.1</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">ENE</div>
+                    <div class="zone-room">Balcony</div>
+                    <div class="zone-score" style="color:var(--good);">9.0</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">ESE</div>
+                    <div class="zone-room">Corridor</div>
+                    <div class="zone-score" style="color:var(--good);">7.3</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">SSE</div>
+                    <div class="zone-room">Utility</div>
+                    <div class="zone-score" style="color:var(--critical);">4.9</div>
+                    <div><span class="badge badge-critical">Critical</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">SSW</div>
+                    <div class="zone-room">Storeroom</div>
+                    <div class="zone-score" style="color:var(--good);">7.8</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">WSW</div>
+                    <div class="zone-room">Passage</div>
+                    <div class="zone-score" style="color:var(--good);">8.0</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">WNW</div>
+                    <div class="zone-room">Toilet</div>
+                    <div class="zone-score" style="color:var(--warning);">5.5</div>
+                    <div><span class="badge badge-warning">Moderate</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NNW</div>
+                    <div class="zone-room">Terrace</div>
+                    <div class="zone-score" style="color:var(--good);">8.9</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+            </div>
+            <div class="report-footer">
+                <button class="btn-report">
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="#fff" stroke-width="1.3">
+                        <path d="M2 1h7l2 2v9H2V1z" />
+                        <path d="M7 1v3h3" />
+                        <path d="M4 7h5M4 9h3" />
+                    </svg>
+                    Download PDF Report
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

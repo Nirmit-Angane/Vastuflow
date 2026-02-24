@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1440" />
+    <title>VastuFlow — Direction 2: Temple Stone</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600&display=swap"
+        rel="stylesheet" />
+    <style>
+        :root {
+            --base: #F7F3EE;
+            --surface: #EDEBE5;
+            --border: #D4C9B8;
+            --text-primary: #1A1510;
+            --text-secondary: #7A6E62;
+            --accent-1: #C17F24;
+            --accent-2: #A0522D;
+            --signal: #E8A020;
+            --canvas-bg: #F9F6F1;
+            --good: #4E7A3A;
+            --warning: #C17F24;
+            --critical: #8B2A2A;
+            --font-display: 'Playfair Display', serif;
+            --font-body: 'Source Sans 3', sans-serif;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 1440px;
+            height: 900px;
+            overflow: hidden;
+            background: var(--base);
+            font-family: var(--font-body);
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+
+        /* Direction badge */
+        .dir-badge {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 999;
+            background: var(--accent-1);
+            color: #F7F3EE;
+            font-family: var(--font-body);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            padding: 4px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+
+        /* ── CEREMONIAL STEP JOURNEY BAR ── */
+        .step-bar {
+            height: 64px;
+            background: var(--surface);
+            border-bottom: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 28px;
+            gap: 0;
+        }
+
+        .step-bar-brand {
+            font-family: var(--font-display);
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-right: 36px;
+            white-space: nowrap;
+            letter-spacing: 0.01em;
+        }
+
+        .step-bar-brand span {
+            color: var(--accent-1);
+        }
+
+        .steps {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            gap: 0;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .step-node {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            border: 2px solid var(--border);
+            color: var(--text-secondary);
+            background: var(--base);
+            transition: all 0.25s;
+        }
+
+        .step.done .step-node {
+            background: var(--accent-1);
+            border-color: var(--accent-1);
+            color: #fff;
+        }
+
+        .step.active .step-node {
+            background: var(--signal);
+            border-color: var(--signal);
+            color: #fff;
+            box-shadow: 0 0 0 4px rgba(232, 160, 32, 0.2), 0 2px 8px rgba(193, 127, 36, 0.3);
+        }
+
+        .step-label {
+            font-size: 8px;
+            color: var(--text-secondary);
+            margin-top: 3px;
+            font-weight: 500;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .step.active .step-label {
+            color: var(--accent-1);
+            font-weight: 700;
+        }
+
+        .step.done .step-label {
+            color: var(--text-secondary);
+        }
+
+        .step-connector {
+            height: 2px;
+            width: 28px;
+            background: var(--border);
+            margin: 0 2px;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
+
+        .step.done~.step-connector {
+            background: var(--accent-1);
+        }
+
+        /* ── WORKSPACE ── */
+        .workspace {
+            display: flex;
+            height: calc(900px - 64px);
+        }
+
+        /* ── LEFT PANEL (320px) ── */
+        .tool-panel {
+            width: 320px;
+            flex-shrink: 0;
+            background: var(--surface);
+            border-right: 1.5px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-section {
+            border-bottom: 1px solid var(--border);
+            padding: 16px 18px;
+        }
+
+        .panel-section-title {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .upload-success {
+            background: var(--base);
+            border: 1.5px solid var(--border);
+            border-radius: 4px;
+            padding: 12px 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .upload-thumb {
+            width: 44px;
+            height: 44px;
+            background: var(--border);
+            border-radius: 2px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .upload-thumb svg {
+            width: 22px;
+            height: 22px;
+        }
+
+        .upload-info {
+            flex: 1;
+        }
+
+        .upload-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .upload-meta {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border-radius: 4px;
+            font-family: var(--font-body);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1.5px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent-1);
+            color: #fff;
+            border-color: var(--accent-1);
+            width: 100%;
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text-secondary);
+            border-color: var(--border);
+            width: 100%;
+            margin-top: 6px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 9px;
+        }
+
+        .info-label {
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        .info-value {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .slider-track {
+            height: 4px;
+            background: var(--border);
+            border-radius: 4px;
+            position: relative;
+            margin-bottom: 12px;
+        }
+
+        .slider-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            background: var(--accent-1);
+            border-radius: 4px;
+        }
+
+        .slider-thumb {
+            position: absolute;
+            top: -7px;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border: 2px solid var(--accent-1);
+            border-radius: 50%;
+            transform: translateX(-50%);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .point-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(193, 127, 36, 0.1);
+            border: 1px solid rgba(193, 127, 36, 0.4);
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 10px;
+            color: var(--accent-1);
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .layer-list {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .layer-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px 0;
+        }
+
+        .layer-name {
+            font-size: 10px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .layer-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .eye-btn {
+            width: 24px;
+            height: 24px;
+            background: var(--base);
+            border: 1.5px solid var(--border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .eye-btn svg {
+            width: 13px;
+            height: 13px;
+        }
+
+        .eye-off {
+            opacity: 0.3;
+        }
+
+        /* ── CENTER CANVAS (70%) ── */
+        .canvas-area {
+            flex: 1;
+            background: var(--canvas-bg);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .canvas-area::before {
+            content: '';
+            position: absolute;
+            inset: 24px;
+            border: 1.5px solid rgba(212, 201, 184, 0.5);
+            border-radius: 4px;
+            pointer-events: none;
+        }
+
+        .canvas-toolbar {
+            position: absolute;
+            top: 40px;
+            right: 36px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .canvas-btn {
+            width: 34px;
+            height: 34px;
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .canvas-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .scale-bar {
+            position: absolute;
+            bottom: 40px;
+            right: 56px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .scale-line {
+            height: 10px;
+            width: 80px;
+            border-left: 2px solid var(--text-secondary);
+            border-right: 2px solid var(--text-secondary);
+            border-bottom: 2px solid var(--text-secondary);
+        }
+
+        .scale-label {
+            font-size: 9px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* ── RIGHT SIDEBAR ── */
+        .analysis-panel {
+            width: 280px;
+            flex-shrink: 0;
+            background: var(--surface);
+            border-left: 1.5px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .analysis-header {
+            padding: 16px 16px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .analysis-title {
+            font-family: var(--font-display);
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .analysis-subtitle {
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        .score-ring-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .score-ring {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            flex-shrink: 0;
+        }
+
+        .score-ring svg {
+            width: 60px;
+            height: 60px;
+            transform: rotate(-90deg);
+        }
+
+        .score-ring-label {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .score-num {
+            font-family: var(--font-display);
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .score-denom {
+            font-size: 8px;
+            color: var(--text-secondary);
+        }
+
+        .score-meta {
+            flex: 1;
+        }
+
+        .score-house {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .score-address {
+            font-size: 9px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            margin-top: 2px;
+        }
+
+        .score-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 5px;
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--warning);
+            background: rgba(193, 127, 36, 0.1);
+            padding: 2px 8px;
+            border-radius: 20px;
+            border: 1px solid rgba(193, 127, 36, 0.3);
+        }
+
+        .zone-table-wrap {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .zone-table-header {
+            display: grid;
+            grid-template-columns: 70px 1fr 42px 54px;
+            padding: 6px 16px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: var(--surface);
+            z-index: 10;
+        }
+
+        .zone-table-header span {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+        }
+
+        .zone-row {
+            display: grid;
+            grid-template-columns: 70px 1fr 42px 54px;
+            padding: 7px 16px;
+            border-bottom: 1px solid rgba(212, 201, 184, 0.3);
+            align-items: center;
+        }
+
+        .zone-row:hover {
+            background: rgba(193, 127, 36, 0.04);
+        }
+
+        .zone-dir {
+            font-family: var(--font-display);
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .zone-room {
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        .zone-score {
+            font-size: 11px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .badge {
+            font-size: 8px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 20px;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .badge-good {
+            background: rgba(78, 122, 58, 0.12);
+            color: var(--good);
+            border: 1px solid rgba(78, 122, 58, 0.3);
+        }
+
+        .badge-warning {
+            background: rgba(193, 127, 36, 0.12);
+            color: var(--warning);
+            border: 1px solid rgba(193, 127, 36, 0.3);
+        }
+
+        .badge-critical {
+            background: rgba(139, 42, 42, 0.1);
+            color: var(--critical);
+            border: 1px solid rgba(139, 42, 42, 0.3);
+        }
+
+        .report-footer {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        .btn-report {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            width: 100%;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-family: var(--font-body);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--surface);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="dir-badge">Direction 2 — Temple Stone</div>
+
+    <!-- STEP BAR - ceremonial/prominent -->
+    <div class="step-bar">
+        <div class="step-bar-brand">Vastu<span>Flow</span></div>
+        <div class="steps">
+            <div class="step done">
+                <div class="step-node">✓</div><span class="step-label">Upload</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step done">
+                <div class="step-node">✓</div><span class="step-label">Rotate</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step done">
+                <div class="step-node">✓</div><span class="step-label">Crop</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step done">
+                <div class="step-node">✓</div><span class="step-label">Scale</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step active">
+                <div class="step-node">5</div><span class="step-label">Trace</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">6</div><span class="step-label">Centroid</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">7</div><span class="step-label">Chakra</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">8</div><span class="step-label">Zones</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">9</div><span class="step-label">Analysis</span>
+            </div>
+            <div class="step-connector"></div>
+            <div class="step">
+                <div class="step-node">10</div><span class="step-label">Report</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <!-- LEFT -->
+        <div class="tool-panel">
+            <div class="panel-section">
+                <div class="panel-section-title">Floor Plan</div>
+                <div class="upload-success">
+                    <div class="upload-thumb">
+                        <svg viewBox="0 0 22 22" fill="none" stroke="#C17F24" stroke-width="1.5">
+                            <rect x="3" y="3" width="16" height="16" rx="1" />
+                            <path d="M3 14l4-4 3 3 4-5 5 6" />
+                            <circle cx="8" cy="8" r="1.5" fill="#C17F24" stroke="none" />
+                        </svg>
+                    </div>
+                    <div class="upload-info">
+                        <div class="upload-name">Sharma Residence.jpg</div>
+                        <div class="upload-meta">3BHK · Andheri West, Mumbai</div>
+                        <div class="upload-meta" style="color:var(--good); font-weight:700;">✓ 2.4 MB · Loaded</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-section-title">Alignment & Scale</div>
+                <div class="info-row">
+                    <span class="info-label">North Rotation</span>
+                    <span class="info-value">12.4°</span>
+                </div>
+                <div class="slider-track">
+                    <div class="slider-fill" style="width:12%"></div>
+                    <div class="slider-thumb" style="left:12%"></div>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Scale ratio</span>
+                    <span class="info-value">1px = 0.032 m</span>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-section-title" style="color:var(--accent-1);">◉ Trace Perimeter</div>
+                <div class="point-badge">⬤ 7 boundary points placed</div>
+                <div style="font-size:10px; color:var(--text-secondary); margin-bottom:12px; line-height:1.6;">
+                    Click around the floor plan boundary to define the perimeter polygon. Minimum 3 points required.
+                </div>
+                <div class="btn btn-outline">↩ Undo Last Point</div>
+                <div class="btn btn-primary" style="margin-top:8px;">Close Polygon ✓</div>
+            </div>
+
+            <div class="panel-section" style="flex:1; overflow:auto;">
+                <div class="panel-section-title">Canvas Layers</div>
+                <div class="layer-list">
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot"
+                                style="background:#C17F24;"></span>Background</span>
+                        <div class="eye-btn"><svg viewBox="0 0 13 13" fill="none" stroke="#7A6E62" stroke-width="1.3">
+                                <path d="M1 6.5s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4z" />
+                                <circle cx="6.5" cy="6.5" r="1.7" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot" style="background:#E8A020;"></span>Trace</span>
+                        <div class="eye-btn"><svg viewBox="0 0 13 13" fill="none" stroke="#7A6E62" stroke-width="1.3">
+                                <path d="M1 6.5s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4z" />
+                                <circle cx="6.5" cy="6.5" r="1.7" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot"
+                                style="background:#A0522D;"></span>Centroid</span>
+                        <div class="eye-btn"><svg viewBox="0 0 13 13" fill="none" stroke="#7A6E62" stroke-width="1.3">
+                                <path d="M1 6.5s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4z" />
+                                <circle cx="6.5" cy="6.5" r="1.7" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot"
+                                style="background:#8CA0CC;"></span>Chakra</span>
+                        <div class="eye-btn eye-off"><svg viewBox="0 0 13 13" fill="none" stroke="#7A6E62"
+                                stroke-width="1.3">
+                                <path
+                                    d="M2 2l9 9M1 5.8C2.7 3.6 4.8 2 6.5 2M10.2 4.2C11.3 5.2 12 6.5 12 6.5s-2.2 4-5.5 4c-.9 0-1.8-.3-2.6-.7" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot" style="background:#4E7A3A;"></span>Zones</span>
+                        <div class="eye-btn eye-off"><svg viewBox="0 0 13 13" fill="none" stroke="#7A6E62"
+                                stroke-width="1.3">
+                                <path
+                                    d="M2 2l9 9M1 5.8C2.7 3.6 4.8 2 6.5 2M10.2 4.2C11.3 5.2 12 6.5 12 6.5s-2.2 4-5.5 4c-.9 0-1.8-.3-2.6-.7" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot"
+                                style="background:#9E8060;"></span>Labels</span>
+                        <div class="eye-btn"><svg viewBox="0 0 13 13" fill="none" stroke="#7A6E62" stroke-width="1.3">
+                                <path d="M1 6.5s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4z" />
+                                <circle cx="6.5" cy="6.5" r="1.7" />
+                            </svg></div>
+                    </div>
+                    <div class="layer-row">
+                        <span class="layer-name"><span class="layer-dot"
+                                style="background:#D4C9B8;"></span>Controls</span>
+                        <div class="eye-btn"><svg viewBox="0 0 13 13" fill="none" stroke="#7A6E62" stroke-width="1.3">
+                                <path d="M1 6.5s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4z" />
+                                <circle cx="6.5" cy="6.5" r="1.7" />
+                            </svg></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CANVAS -->
+        <div class="canvas-area">
+            <svg style="position:absolute; inset:24px; width:calc(100% - 48px); height:calc(100% - 48px);"
+                viewBox="0 0 820 760" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Floor plan faint lines -->
+                <g opacity="0.15">
+                    <rect x="150" y="80" width="500" height="600" stroke="#C17F24" stroke-width="0.6" />
+                    <line x1="150" y1="300" x2="390" y2="300" stroke="#C17F24" stroke-width="0.5" />
+                    <line x1="390" y1="80" x2="390" y2="500" stroke="#C17F24" stroke-width="0.5" />
+                    <line x1="390" y1="500" x2="650" y2="500" stroke="#C17F24" stroke-width="0.5" />
+                    <line x1="390" y1="300" x2="650" y2="300" stroke="#C17F24" stroke-width="0.5" />
+                    <line x1="510" y1="80" x2="510" y2="300" stroke="#C17F24" stroke-width="0.5" />
+                </g>
+
+                <!-- Shakti Chakra (16-sector) -->
+                <g opacity="0.12">
+                    <circle cx="400" cy="380" r="220" stroke="#C17F24" stroke-width="1.2" />
+                    <circle cx="400" cy="380" r="130" stroke="#C17F24" stroke-width="0.8" />
+                    <!-- 8 main sectors -->
+                    <line x1="400" y1="160" x2="400" y2="600" stroke="#C17F24" stroke-width="0.8" />
+                    <line x1="180" y1="380" x2="620" y2="380" stroke="#C17F24" stroke-width="0.8" />
+                    <line x1="244" y1="224" x2="556" y2="536" stroke="#C17F24" stroke-width="0.8" />
+                    <line x1="556" y1="224" x2="244" y2="536" stroke="#C17F24" stroke-width="0.8" />
+                    <!-- 8 half-sectors -->
+                    <line x1="400" y1="160" x2="556" y2="224" stroke="#C17F24" stroke-width="0.4" />
+                    <line x1="556" y1="224" x2="620" y2="380" stroke="#C17F24" stroke-width="0.4" />
+                    <line x1="620" y1="380" x2="556" y2="536" stroke="#C17F24" stroke-width="0.4" />
+                    <line x1="556" y1="536" x2="400" y2="600" stroke="#C17F24" stroke-width="0.4" />
+                    <line x1="400" y1="600" x2="244" y2="536" stroke="#C17F24" stroke-width="0.4" />
+                    <line x1="244" y1="536" x2="180" y2="380" stroke="#C17F24" stroke-width="0.4" />
+                    <line x1="180" y1="380" x2="244" y2="224" stroke="#C17F24" stroke-width="0.4" />
+                    <line x1="244" y1="224" x2="400" y2="160" stroke="#C17F24" stroke-width="0.4" />
+                </g>
+
+                <!-- Zone fills -->
+                <g opacity="0.07">
+                    <rect x="150" y="80" width="240" height="220" fill="#4E7A3A" />
+                    <rect x="390" y="80" width="260" height="220" fill="#C17F24" />
+                    <rect x="150" y="300" width="240" height="200" fill="#4E7A3A" />
+                    <rect x="390" y="300" width="260" height="200" fill="#8B2A2A" />
+                    <rect x="150" y="500" width="500" height="180" fill="#4E7A3A" />
+                </g>
+
+                <!-- Trace polygon -->
+                <polygon points="150,80 650,80 650,500 510,500 510,680 150,680" stroke="#E8A020" stroke-width="2.5"
+                    stroke-linejoin="round" fill="rgba(232,160,32,0.04)" stroke-dasharray="7 3" />
+                <!-- Trace vertices -->
+                <circle cx="150" cy="80" r="6" fill="#E8A020" stroke="#F7F3EE" stroke-width="2" />
+                <circle cx="650" cy="80" r="6" fill="#E8A020" stroke="#F7F3EE" stroke-width="2" />
+                <circle cx="650" cy="500" r="6" fill="#E8A020" stroke="#F7F3EE" stroke-width="2" />
+                <circle cx="510" cy="500" r="6" fill="#E8A020" stroke="#F7F3EE" stroke-width="2" />
+                <circle cx="510" cy="680" r="6" fill="#E8A020" stroke="#F7F3EE" stroke-width="2" />
+                <circle cx="150" cy="680" r="6" fill="#E8A020" stroke="#F7F3EE" stroke-width="2" />
+                <!-- Active vertex indicator -->
+                <circle cx="150" cy="80" r="10" stroke="#E8A020" stroke-width="1.5" fill="none" opacity="0.4" />
+
+                <!-- Outer zone labels -->
+                <text x="400" y="130" text-anchor="middle" font-family="'Source Sans 3', sans-serif" font-size="10"
+                    fill="#7A6E62" font-weight="700">N</text>
+                <text x="460" y="140" text-anchor="middle" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#7A6E62">NNE</text>
+                <text x="514" y="162" text-anchor="middle" font-family="'Source Sans 3', sans-serif" font-size="9"
+                    fill="#7A6E62">NE</text>
+                <text x="556" y="200" text-anchor="start" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#7A6E62">ENE</text>
+                <text x="578" y="246" text-anchor="start" font-family="'Source Sans 3', sans-serif" font-size="9"
+                    fill="#7A6E62">E</text>
+                <text x="570" y="310" text-anchor="start" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#7A6E62">ESE</text>
+                <text x="554" y="365" text-anchor="start" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#7A6E62">SE</text>
+                <text x="540" y="440" text-anchor="start" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#7A6E62">SSE</text>
+                <text x="400" y="648" text-anchor="middle" font-family="'Source Sans 3', sans-serif" font-size="10"
+                    fill="#7A6E62" font-weight="700">S</text>
+                <text x="328" y="638" text-anchor="end" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#7A6E62">SSW</text>
+                <text x="270" y="600" text-anchor="end" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#7A6E62">SW</text>
+                <text x="232" y="556" text-anchor="end" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#7A6E62">WSW</text>
+                <text x="206" y="380" text-anchor="end" font-family="'Source Sans 3', sans-serif" font-size="9"
+                    fill="#7A6E62">W</text>
+                <text x="218" y="300" text-anchor="end" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#7A6E62">WNW</text>
+                <text x="256" y="234" text-anchor="end" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#7A6E62">NW</text>
+                <text x="316" y="162" text-anchor="end" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#7A6E62">NNW</text>
+
+                <!-- Brahm Bindu -->
+                <circle cx="400" cy="380" r="22" stroke="#E8A020" stroke-width="1.5" fill="none" opacity="0.3" />
+                <circle cx="400" cy="380" r="14" stroke="#E8A020" stroke-width="2" fill="none" opacity="0.6" />
+                <line x1="392" y1="380" x2="408" y2="380" stroke="#E8A020" stroke-width="1.5" opacity="0.9" />
+                <line x1="400" y1="372" x2="400" y2="388" stroke="#E8A020" stroke-width="1.5" opacity="0.9" />
+                <circle cx="400" cy="380" r="5" fill="#E8A020" />
+                <circle cx="400" cy="380" r="2.5" fill="#F7F3EE" />
+                <!-- Label -->
+                <rect x="408" y="362" width="80" height="15" rx="7" fill="#F7F3EE" stroke="#D4C9B8"
+                    stroke-width="0.8" />
+                <text x="448" y="373" text-anchor="middle" font-family="'Source Sans 3', sans-serif" font-size="8"
+                    fill="#C17F24" font-weight="700">BRAHM BINDU</text>
+
+                <!-- North compass -->
+                <g transform="translate(730, 110)">
+                    <circle cx="0" cy="0" r="22" stroke="#D4C9B8" stroke-width="1.5" fill="#EDEBE5" />
+                    <polygon points="0,-16 -6,8 0,4 6,8" fill="#C17F24" />
+                    <polygon points="0,16 -6,-8 0,-4 6,-8" fill="#D4C9B8" opacity="0.5" />
+                    <text x="0" y="33" text-anchor="middle" font-family="'Source Sans 3', sans-serif" font-size="9"
+                        fill="#7A6E62" font-weight="700">N</text>
+                </g>
+            </svg>
+
+            <div class="canvas-toolbar">
+                <div class="canvas-btn"><svg viewBox="0 0 16 16" fill="none" stroke="#7A6E62" stroke-width="1.5">
+                        <circle cx="7" cy="7" r="4.5" />
+                        <path d="M10.5 10.5l3 3M7 5v4M5 7h4" />
+                    </svg></div>
+                <div class="canvas-btn"><svg viewBox="0 0 16 16" fill="none" stroke="#7A6E62" stroke-width="1.5">
+                        <circle cx="7" cy="7" r="4.5" />
+                        <path d="M10.5 10.5l3 3M5 7h4" />
+                    </svg></div>
+                <div class="canvas-btn"><svg viewBox="0 0 16 16" fill="none" stroke="#7A6E62" stroke-width="1.5">
+                        <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
+                    </svg></div>
+            </div>
+            <div class="scale-bar">
+                <div class="scale-line"></div>
+                <span class="scale-label">2 metres</span>
+            </div>
+        </div>
+
+        <!-- RIGHT ANALYSIS -->
+        <div class="analysis-panel">
+            <div class="analysis-header">
+                <div class="analysis-title">Vastu Analysis</div>
+                <div class="analysis-subtitle">Sharma Residence · 3BHK · Mumbai</div>
+            </div>
+            <div class="score-ring-wrap">
+                <div class="score-ring">
+                    <svg viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="24" stroke="#D4C9B8" stroke-width="5" fill="none" />
+                        <circle cx="30" cy="30" r="24" stroke="#C17F24" stroke-width="5" fill="none"
+                            stroke-dasharray="102 151" stroke-linecap="round" />
+                    </svg>
+                    <div class="score-ring-label">
+                        <span class="score-num">68</span><span class="score-denom">/100</span>
+                    </div>
+                </div>
+                <div class="score-meta">
+                    <div class="score-house">Sharma Residence</div>
+                    <div class="score-address">3BHK · Andheri West<br />Mumbai, Maharashtra</div>
+                    <div class="score-status">⚠ 3 deviations found</div>
+                </div>
+            </div>
+            <div class="zone-table-wrap">
+                <div class="zone-table-header">
+                    <span>Direction</span><span>Room</span><span>Score</span><span>Status</span>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">N</div>
+                    <div class="zone-room">Living Room</div>
+                    <div class="zone-score" style="color:var(--good);">9.2</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NE</div>
+                    <div class="zone-room">Puja Room</div>
+                    <div class="zone-score" style="color:var(--good);">9.8</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">E</div>
+                    <div class="zone-room">Master Bed</div>
+                    <div class="zone-score" style="color:var(--good);">8.4</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">SE</div>
+                    <div class="zone-room">Kitchen</div>
+                    <div class="zone-score" style="color:var(--good);">9.1</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">S</div>
+                    <div class="zone-room">Bedroom 2</div>
+                    <div class="zone-score" style="color:var(--warning);">6.2</div>
+                    <div><span class="badge badge-warning">Moderate</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">SW</div>
+                    <div class="zone-room">Master Bed</div>
+                    <div class="zone-score" style="color:var(--good);">8.7</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">W</div>
+                    <div class="zone-room">Bathroom</div>
+                    <div class="zone-score" style="color:var(--warning);">5.8</div>
+                    <div><span class="badge badge-warning">Moderate</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NW</div>
+                    <div class="zone-room">Guest Room</div>
+                    <div class="zone-score" style="color:var(--good);">7.6</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NNE</div>
+                    <div class="zone-room">Study</div>
+                    <div class="zone-score" style="color:var(--good);">8.1</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">ENE</div>
+                    <div class="zone-room">Balcony</div>
+                    <div class="zone-score" style="color:var(--good);">9.0</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">ESE</div>
+                    <div class="zone-room">Corridor</div>
+                    <div class="zone-score" style="color:var(--good);">7.3</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">SSE</div>
+                    <div class="zone-room">Utility</div>
+                    <div class="zone-score" style="color:var(--critical);">4.9</div>
+                    <div><span class="badge badge-critical">Critical</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">SSW</div>
+                    <div class="zone-room">Storeroom</div>
+                    <div class="zone-score" style="color:var(--good);">7.8</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">WSW</div>
+                    <div class="zone-room">Passage</div>
+                    <div class="zone-score" style="color:var(--good);">8.0</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">WNW</div>
+                    <div class="zone-room">Toilet</div>
+                    <div class="zone-score" style="color:var(--warning);">5.5</div>
+                    <div><span class="badge badge-warning">Moderate</span></div>
+                </div>
+                <div class="zone-row">
+                    <div class="zone-dir">NNW</div>
+                    <div class="zone-room">Terrace</div>
+                    <div class="zone-score" style="color:var(--good);">8.9</div>
+                    <div><span class="badge badge-good">Good</span></div>
+                </div>
+            </div>
+            <div class="report-footer">
+                <button class="btn-report">
+                    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="#fff" stroke-width="1.3">
+                        <path d="M2 1h7l2 2v9H2V1z" />
+                        <path d="M7 1v3h3" />
+                        <path d="M4 7h5M4 9h3" />
+                    </svg>
+                    Download PDF Report
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
