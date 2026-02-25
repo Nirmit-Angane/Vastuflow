@@ -1,7 +1,7 @@
 "use client";
 
 import { useReducer, useCallback, useRef } from "react";
-import { createEmptyProject, projectReducer, ProjectAction } from "@/state/project-state";
+import { createEmptyProject, projectReducer } from "@/state/project-state";
 import { Phase, isPhaseAtLeast } from "@/state/phase";
 import { generateReport } from "@/lib/pdf-export";
 import StepBar from "@/components/StepBar";
@@ -142,6 +142,7 @@ export default function WorkspacePage() {
                 />
                 <CanvasArea
                     state={state}
+                    dispatch={dispatch}
                     onCanvasClick={handleCanvasClick}
                 />
                 <AnalysisPanel

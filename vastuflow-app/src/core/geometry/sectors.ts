@@ -3,7 +3,7 @@
 // Pure functions. No React. No state.
 // ═══════════════════════════════════════════════════════
 
-import { Point, Sector, VastuDirection, DIRECTION_ORDER } from "./types";
+import { Point, Sector, DIRECTION_ORDER } from "./types";
 
 const SECTOR_COUNT = 16;
 const SECTOR_ANGLE = 360 / SECTOR_COUNT; // 22.5°
@@ -20,11 +20,11 @@ const ARC_SEGMENTS = 8; // resolution for arc approximation
  *   Angles increase clockwise
  *
  * @param centroid — Brahm Bindu
- * @param radius — radial extent (large enough to cover polygon bbox)
+ * @param rotationOffset — degrees to rotate the chakra (default 0)
  */
-export function generate16Sectors(centroid: Point, radius: number): Sector[] {
+export function generate16Sectors(centroid: Point, radius: number, rotationOffset: number = 0): Sector[] {
     return DIRECTION_ORDER.map((direction, index) => {
-        const startAngle = index * SECTOR_ANGLE - SECTOR_ANGLE / 2;
+        const startAngle = index * SECTOR_ANGLE - SECTOR_ANGLE / 2 + rotationOffset;
         const endAngle = startAngle + SECTOR_ANGLE;
 
         const polygon = buildSectorPolygon(centroid, radius, startAngle, endAngle);

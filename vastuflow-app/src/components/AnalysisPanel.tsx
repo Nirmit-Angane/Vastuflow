@@ -10,7 +10,7 @@ interface AnalysisPanelProps {
 }
 
 export default function AnalysisPanel({ state, onDownloadReport, onExportJSON }: AnalysisPanelProps) {
-    const { phase, zoneResults, overallScore, deviationCount, sectorOverlaps, analysisSummary } = state;
+    const { phase, zoneResults, overallScore, deviationCount, analysisSummary } = state;
     const hasAnalysis = isPhaseAtLeast(phase, Phase.ANALYZED);
 
     const circumference = 2 * Math.PI * 27;

@@ -7,7 +7,7 @@
 // derives zone scores from the real percentages.
 // ═══════════════════════════════════════════════════════
 
-import { Point, Sector, SectorOverlap, ZoneResult, VastuDirection, DIRECTION_ORDER } from "./types";
+import { Point, Sector, SectorOverlap, ZoneResult, VastuDirection } from "./types";
 import { computePolygonArea, computeCentroid, ensureCCW } from "./polygon";
 import { generate16Sectors, computeCoveringRadius } from "./sectors";
 import { clipPolygon } from "./clipping";
@@ -21,7 +21,7 @@ import { clipPolygon } from "./clipping";
  * 4. Clip polygon against each sector
  * 5. Compute clipped area / total area
  */
-export function computeSectorOverlaps(polygon: Point[]): {
+export function computeSectorOverlaps(polygon: Point[], chakraScale: number = 1.0, chakraRotation: number = 0): {
     centroid: Point;
     totalArea: number;
     sectors: Sector[];
@@ -30,8 +30,9 @@ export function computeSectorOverlaps(polygon: Point[]): {
     const ccwPoly = ensureCCW(polygon);
     const totalArea = computePolygonArea(ccwPoly);
     const centroid = computeCentroid(ccwPoly);
-    const radius = computeCoveringRadius(centroid, ccwPoly);
-    const sectors = generate16Sectors(centroid, radius);
+    const baseRadius = computeCoveringRadius(centroid, ccwPoly);
+    const radius = baseRadius * chakraScale;
+    const sectors = generate16Sectors(centroid, radius, chakraRotation);
 
     const idealPercent = 100 / 16; // 6.25%
 

@@ -11,7 +11,7 @@ interface ToolPanelProps {
 }
 
 export default function ToolPanel({ state, dispatch, onFileSelect, onFileDrop }: ToolPanelProps) {
-    const { phase, imageName, imageSize, rotation, scaleRatio, polygon, polygonValid, validationError, layers } = state;
+    const { phase, imageName, imageSize, rotation, scaleRatio, polygon, polygonValid, validationError } = state;
 
     return (
         <div className="tool-panel">
@@ -65,38 +65,114 @@ export default function ToolPanel({ state, dispatch, onFileSelect, onFileDrop }:
             {phase === Phase.IMAGE_LOADED && (
                 <div className="panel-section active-section">
                     <div className="panel-section-title" style={{ color: "var(--accent-gold)" }}>◉ Alignment</div>
-                    <div className="info-row">
-                        <span className="info-label">ROTATION</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <input
-                                type="number"
-                                min="0"
-                                max="360"
-                                step="0.5"
-                                value={(rotation ?? 0).toFixed(1)}
-                                onChange={(e) => {
-                                    const v = parseFloat(e.target.value);
-                                    if (Number.isFinite(v)) {
-                                        const clamped = Math.max(0, Math.min(360, v));
-                                        dispatch({ type: "SET_ROTATION", degrees: clamped });
-                                    }
-                                }}
-                                style={{
-                                    width: 52, padding: "3px 6px", border: "1px solid var(--border)",
-                                    borderRadius: 4, background: "var(--surface)", color: "var(--text-primary)",
-                                    fontFamily: "var(--font-mono)", fontSize: 10, textAlign: "right",
-                                }}
+
+                    {/* Rotation */}
+                    {!state.cropMode && (
+                        <>
+                            <div className="info-row">
+                                <span className="info-label">ROTATION</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                    <input
+                                        type="number" min="0" max="360" step="0.5"
+                                        value={(rotation ?? 0).toFixed(1)}
+                                        onChange={(e) => {
+                                            const v = parseFloat(e.target.value);
+                                            if (Number.isFinite(v)) dispatch({ type: "SET_ROTATION", degrees: Math.max(0, Math.min(360, v)) });
+                                        }}
+                                        style={{
+                                            width: 52, padding: "3px 6px", border: "1px solid var(--border)",
+                                            borderRadius: 4, background: "var(--surface)", color: "var(--text-primary)",
+                                            fontFamily: "var(--font-mono)", fontSize: 10, textAlign: "right",
+                                        }}
+                                    />
+                                    <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>°</span>
+                                </div>
+                            </div>
+                            <input type="range" min="0" max="360" step="0.5" value={rotation ?? 0}
+                                onChange={(e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) dispatch({ type: "SET_ROTATION", degrees: v }); }}
+                                style={{ width: "100%", height: 3, appearance: "none", background: `linear-gradient(90deg, var(--accent-gold) ${((rotation ?? 0) / 360) * 100}%, var(--surface-3) ${((rotation ?? 0) / 360) * 100}%)`, borderRadius: 2, cursor: "pointer", marginBottom: 12 }}
                             />
-                            <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>°</span>
-                        </div>
-                    </div>
-                    <input type="range" min="0" max="360" step="0.5" value={rotation ?? 0}
-                        onChange={(e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) dispatch({ type: "SET_ROTATION", degrees: v }); }}
-                        style={{ width: "100%", height: 3, appearance: "none", background: `linear-gradient(90deg, var(--accent-gold) ${((rotation ?? 0) / 360) * 100}%, var(--surface-3) ${((rotation ?? 0) / 360) * 100}%)`, borderRadius: 2, cursor: "pointer", marginBottom: 12 }}
-                    />
-                    <button className="btn btn-primary" onClick={() => dispatch({ type: "CONFIRM_ALIGNMENT" })}>
-                        Confirm Alignment →
-                    </button>
+
+                            {/* Crop trigger */}
+                            <button
+                                className="btn btn-ghost"
+                                style={{ marginBottom: 8 }}
+                                onClick={() => dispatch({ type: "START_CROP" })}
+                            >
+                                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" style={{ width: 12, height: 12, marginRight: 4 }}>
+                                    <path d="M3 1v10h10M1 3h10v10" />
+                                    <path d="M3 3l8 8" strokeDasharray="3 2" />
+                                </svg>
+                                Crop Image
+                            </button>
+                            <button className="btn btn-primary" onClick={() => dispatch({ type: "CONFIRM_ALIGNMENT" })}>
+                                Confirm Alignment →
+                            </button>
+                        </>
+                    )}
+
+                    {/* Crop mode UI */}
+                    {state.cropMode && (
+                        <>
+                            <div className="trace-hint" style={{ background: "rgba(184,134,11,0.06)", borderColor: "rgba(184,134,11,0.2)", marginBottom: 12 }}>
+                                <strong>Drag</strong> on the map to select the crop area, then click <strong>Apply</strong>.
+                            </div>
+
+                            {state.cropRect && state.cropRect.w > 4 && state.cropRect.h > 4 && (
+                                <div className="info-row" style={{ marginBottom: 10 }}>
+                                    <span className="info-label">SELECTION</span>
+                                    <span className="info-value" style={{ fontSize: 9 }}>
+                                        {Math.round(state.cropRect.w)}&times;{Math.round(state.cropRect.h)}
+                                    </span>
+                                </div>
+                            )}
+
+                            <button
+                                className="btn btn-primary"
+                                disabled={!state.cropRect || state.cropRect.w < 8 || state.cropRect.h < 8}
+                                onClick={() => {
+                                    if (!state.image || !state.cropRect) return;
+                                    const img = new window.Image();
+                                    img.onload = () => {
+                                        const r = state.cropRect!;
+                                        const SVG_W = 840, SVG_H = 800;
+                                        const imgW = img.naturalWidth, imgH = img.naturalHeight;
+
+                                        // preserveAspectRatio="xMidYMid meet" — uniform scale, centered
+                                        const scale = Math.min(SVG_W / imgW, SVG_H / imgH);
+                                        const rendW = imgW * scale;
+                                        const rendH = imgH * scale;
+                                        // Offset of the actual image inside the 840×800 SVG canvas
+                                        const xOff = (SVG_W - rendW) / 2;
+                                        const yOff = (SVG_H - rendH) / 2;
+
+                                        // Map SVG crop rect → source image pixels
+                                        const srcX = Math.max(0, (r.x - xOff) / scale);
+                                        const srcY = Math.max(0, (r.y - yOff) / scale);
+                                        const srcW = Math.min(r.w / scale, imgW - srcX);
+                                        const srcH = Math.min(r.h / scale, imgH - srcY);
+
+                                        if (srcW < 2 || srcH < 2) return;
+
+                                        const canvas = document.createElement("canvas");
+                                        canvas.width = Math.round(srcW);
+                                        canvas.height = Math.round(srcH);
+                                        const ctx = canvas.getContext("2d")!;
+                                        ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+                                        const url = canvas.toDataURL("image/png");
+                                        dispatch({ type: "APPLY_CROP", url });
+                                    };
+                                    img.src = state.image;
+                                }}
+                                style={{ marginBottom: 6 }}
+                            >
+                                ✓ Apply Crop
+                            </button>
+                            <button className="btn btn-ghost" onClick={() => dispatch({ type: "CANCEL_CROP" })}>
+                                ✕ Cancel
+                            </button>
+                        </>
+                    )}
                 </div>
             )}
 
@@ -240,18 +316,82 @@ export default function ToolPanel({ state, dispatch, onFileSelect, onFileDrop }:
 
             {/* ── Analysis Summary ── */}
             {isPhaseAtLeast(phase, Phase.ANALYZED) && (
-                <div className="panel-section active-section">
-                    <div className="panel-section-title" style={{ color: "var(--good)" }}>✓ Analysis Complete</div>
-                    <div className="point-badge" style={{ color: "var(--good)", borderColor: "rgba(61,122,79,0.25)", background: "var(--good-bg)" }}>
-                        {state.overallScore}/100 Geometric Score
+                <>
+                    <div className="panel-section active-section">
+                        <div className="panel-section-title" style={{ color: "var(--good)" }}>✓ Analysis Complete</div>
+                        <div className="point-badge" style={{ color: "var(--good)", borderColor: "rgba(61,122,79,0.25)", background: "var(--good-bg)" }}>
+                            {state.overallScore}/100 Geometric Score
+                        </div>
+                        <div className="trace-hint">{state.analysisSummary}</div>
+                        <div style={{ fontSize: 9, color: "var(--text-secondary)", fontFamily: "var(--font-mono)", lineHeight: 1.7 }}>
+                            Polygon Area: {state.polygonArea.toFixed(1)} px²<br />
+                            Centroid: ({state.centroid?.x.toFixed(1)}, {state.centroid?.y.toFixed(1)})<br />
+                            Deviations: {state.deviationCount} / 16 sectors
+                        </div>
                     </div>
-                    <div className="trace-hint">{state.analysisSummary}</div>
-                    <div style={{ fontSize: 9, color: "var(--text-secondary)", fontFamily: "var(--font-mono)", lineHeight: 1.7 }}>
-                        Polygon Area: {state.polygonArea.toFixed(1)} px²<br />
-                        Centroid: ({state.centroid?.x.toFixed(1)}, {state.centroid?.y.toFixed(1)})<br />
-                        Deviations: {state.deviationCount} / 16 sectors
+
+                    <div className="panel-section">
+                        <div className="panel-section-title">Shakti Chakra Overlay</div>
+                        <div className="trace-hint" style={{ marginBottom: 16 }}>
+                            Adjust the size and orientation of the 16 Vastu directional zones.
+                        </div>
+                        <div className="info-row" style={{ marginTop: 6, marginBottom: 4 }}>
+                            <span className="info-label">SCALE</span>
+                            <span className="info-value">{state.chakraScale.toFixed(2)}x</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="0.5" max="2.0" step="0.05"
+                            value={state.chakraScale}
+                            onChange={(e) => dispatch({ type: "SET_CHAKRA_SCALE", scale: parseFloat(e.target.value) })}
+                            style={{
+                                width: "100%", height: 3, appearance: "none",
+                                background: `linear-gradient(90deg, var(--accent-gold) ${((state.chakraScale - 0.5) / 1.5) * 100}%, var(--surface-3) ${((state.chakraScale - 0.5) / 1.5) * 100}%)`,
+                                borderRadius: 2, cursor: "pointer", marginBottom: 16
+                            }}
+                        />
+
+                        <div className="info-row" style={{ marginBottom: 4 }}>
+                            <span className="info-label">ROTATION</span>
+                            <span className="info-value">{state.chakraRotation.toFixed(1)}°</span>
+                        </div>
+                        <input
+                            type="range"
+                            min="-180" max="180" step="1"
+                            value={state.chakraRotation}
+                            onChange={(e) => dispatch({ type: "SET_CHAKRA_ROTATION", degrees: parseInt(e.target.value, 10) })}
+                            style={{
+                                width: "100%", height: 3, appearance: "none",
+                                background: `linear-gradient(90deg, var(--accent-gold) ${((state.chakraRotation + 180) / 360) * 100}%, var(--surface-3) ${((state.chakraRotation + 180) / 360) * 100}%)`,
+                                borderRadius: 2, cursor: "pointer", marginBottom: 16
+                            }}
+                        />
+
+                        <div className="info-row" style={{ marginBottom: 6 }}>
+                            <span className="info-label">ENTRANCE POINTER (°)</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                <input
+                                    type="number"
+                                    min="0" max="360" step="1"
+                                    placeholder="e.g. 103"
+                                    value={state.pointerDegree ?? ""}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        const degree = val === "" ? null : parseInt(val, 10);
+                                        dispatch({ type: "SET_POINTER_DEGREE", degree });
+                                    }}
+                                    style={{
+                                        width: 52, padding: "3px 6px", border: "1px solid var(--border)",
+                                        borderRadius: 4, background: "var(--surface)", color: "var(--text-primary)",
+                                        fontFamily: "var(--font-mono)", fontSize: 10, textAlign: "right",
+                                        outline: "none"
+                                    }}
+                                />
+                                <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>°</span>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </>
             )}
 
             {/* ── Alignment info (read-only when past alignment) ── */}
@@ -263,31 +403,7 @@ export default function ToolPanel({ state, dispatch, onFileSelect, onFileDrop }:
                 </div>
             )}
 
-            {/* ── Layers ── */}
-            <div className="panel-section" style={{ flex: 1, overflow: "auto" }}>
-                <div className="panel-section-title">Layers</div>
-                <div className="layer-list">
-                    {Object.entries(layers).map(([name, visible]) => (
-                        <div className="layer-row" key={name}>
-                            <span className="layer-name">
-                                <span className="layer-dot" style={{ background: LAYER_COLORS[name] || "#B0AB9E" }} />
-                                {name.charAt(0).toUpperCase() + name.slice(1)}
-                            </span>
-                            <button className={`eye-btn ${!visible ? "eye-off" : ""}`} onClick={() => dispatch({ type: "TOGGLE_LAYER", layer: name })}>
-                                {visible ? (
-                                    <svg viewBox="0 0 11 11" fill="none" stroke="var(--text-secondary)" strokeWidth="1.2">
-                                        <path d="M1 5.5s1.8-3.5 4.5-3.5 4.5 3.5 4.5 3.5-1.8 3.5-4.5 3.5-4.5-3.5-4.5-3.5z" /><circle cx="5.5" cy="5.5" r="1.5" />
-                                    </svg>
-                                ) : (
-                                    <svg viewBox="0 0 11 11" fill="none" stroke="var(--text-secondary)" strokeWidth="1.2">
-                                        <path d="M1.5 1.5l8 8M1 4.5C2.4 2.8 4 2 5.5 2M8.5 3.5C9.5 4.5 10 5.5 10 5.5s-1.8 3.5-4.5 3.5c-.7 0-1.5-.2-2.2-.5" />
-                                    </svg>
-                                )}
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            </div>
+
 
             {/* ── Reset ── */}
             {isPhaseAtLeast(phase, Phase.ANALYZED) && (
@@ -301,11 +417,4 @@ export default function ToolPanel({ state, dispatch, onFileSelect, onFileDrop }:
     );
 }
 
-const LAYER_COLORS: Record<string, string> = {
-    background: "#B8860B",
-    trace: "#D4A017",
-    centroid: "#8B6914",
-    sectors: "#7A8CA0",
-    zones: "#3D7A4F",
-    labels: "#B0AB9E",
-};
+

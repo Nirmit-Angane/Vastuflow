@@ -15,14 +15,16 @@ async function loadPdfJs() {
 
         // Native ES module import from CDN, explicit webpackignore to prevent Next.js bundling issues
         // We use an explicit relative URL bypass if needed, but direct CDN works in modern browsers
-        const module = await import(
+        const pdfModule = await import(
             /* webpackIgnore: true */
             `${PDFJS_CDN}/pdf.min.mjs`
         );
 
-        pdfjsLib = module;
+        pdfjsLib = pdfModule;
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (pdfjsLib && (pdfjsLib as any).GlobalWorkerOptions) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (pdfjsLib as any).GlobalWorkerOptions.workerSrc = `${PDFJS_CDN}/pdf.worker.min.mjs`;
             console.log("[pdfToImageUrl] PDF.js loaded successfully.");
         } else {
@@ -37,6 +39,7 @@ async function loadPdfJs() {
 }
 
 export async function pdfToImageUrl(file: File): Promise<string> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const lib = await loadPdfJs() as any;
 
     const arrayBuffer = await file.arrayBuffer();

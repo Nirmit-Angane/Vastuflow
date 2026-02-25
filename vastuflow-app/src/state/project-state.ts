@@ -8,7 +8,7 @@ import { Point, Sector, SectorOverlap, ZoneResult } from "@/core/geometry/types"
 import {
     computePolygonArea, computeCentroid, ensureCCW, isSimplePolygon,
 } from "@/core/geometry/polygon";
-import { generate16Sectors, computeCoveringRadius } from "@/core/geometry/sectors";
+import { computeCoveringRadius } from "@/core/geometry/sectors";
 import { computeSectorOverlaps, computeZoneScores, computeOverallScore } from "@/core/geometry/overlap";
 
 // ── Project State ──
@@ -40,6 +40,8 @@ export interface ProjectState {
     centroid: Point | null;
     sectors: Sector[];
     sectorOverlaps: SectorOverlap[];
+    chakraScale: number;          // 0.5 to 2.0 (default 1.0)
+    chakraRotation: number;       // 0 to 360 (default 0)
     // Analysis
     zoneResults: ZoneResult[];
     overallScore: number;
@@ -47,6 +49,15 @@ export interface ProjectState {
     analysisSummary: string;
     // Canvas
     layers: Record<string, boolean>;
+    // Interactive Selection
+    hoveredDirection: string | null;
+    selectedDirection: string | null;
+    pointerDegree: number | null;
+    // Crop
+    cropMode: boolean;
+    cropRect: { x: number; y: number; w: number; h: number } | null;
+    // Vertex editing
+    selectedVertex: number | null;
 }
 
 export function createEmptyProject(): ProjectState {
@@ -72,6 +83,8 @@ export function createEmptyProject(): ProjectState {
         centroid: null,
         sectors: [],
         sectorOverlaps: [],
+        chakraScale: 1.0,
+        chakraRotation: 0,
         zoneResults: [],
         overallScore: 0,
         deviationCount: 0,
@@ -84,6 +97,12 @@ export function createEmptyProject(): ProjectState {
             zones: false,
             labels: true,
         },
+        hoveredDirection: null,
+        selectedDirection: null,
+        pointerDegree: null,
+        cropMode: false,
+        cropRect: null,
+        selectedVertex: null,
     };
 }
 
@@ -103,7 +122,18 @@ export type ProjectAction =
     | { type: "ADD_VERTEX"; point: Point }
     | { type: "UNDO_VERTEX" }
     | { type: "CLOSE_POLYGON" }
+    | { type: "SET_CHAKRA_SCALE"; scale: number }
+    | { type: "SET_CHAKRA_ROTATION"; degrees: number }
     | { type: "TOGGLE_LAYER"; layer: string }
+    | { type: "SET_HOVERED_DIRECTION"; direction: string | null }
+    | { type: "SET_SELECTED_DIRECTION"; direction: string | null }
+    | { type: "SET_POINTER_DEGREE"; degree: number | null }
+    | { type: "START_CROP" }
+    | { type: "SET_CROP_RECT"; rect: { x: number; y: number; w: number; h: number } | null }
+    | { type: "CANCEL_CROP" }
+    | { type: "APPLY_CROP"; url: string }
+    | { type: "SELECT_VERTEX"; index: number | null }
+    | { type: "MOVE_VERTEX"; index: number; dx: number; dy: number }
     | { type: "RESET" };
 
 // ── Reducer ──
@@ -248,38 +278,13 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
                 };
             }
 
-            // ── Full deterministic pipeline ──
-            const ccwPoly = ensureCCW(state.polygon);
-            const totalArea = computePolygonArea(ccwPoly);
-            const centroid = computeCentroid(ccwPoly);
-            const radius = computeCoveringRadius(centroid, ccwPoly);
-            const sectors = generate16Sectors(centroid, radius);
-
-            // Compute overlaps
-            const { overlaps } = computeSectorOverlaps(ccwPoly);
-            const zoneResults = computeZoneScores(overlaps);
-            const overallScore = computeOverallScore(zoneResults);
-            const deviationCount = zoneResults.filter(z => z.status !== "good").length;
-
-            let summary: string;
-            if (overallScore >= 80) summary = "Excellent geometric balance. Minimal spatial deviation across zones.";
-            else if (overallScore >= 60) summary = "Good overall balance with some sector deviations. Targeted adjustment recommended.";
-            else if (overallScore >= 40) summary = "Moderate imbalance. Multiple sectors show significant area deviation.";
-            else summary = "Significant geometric imbalance detected. Comprehensive spatial review needed.";
-
+            const analyzedState = recalculateAnalysis(state);
             return {
-                ...state,
+                ...analyzedState,
                 phase: Phase.ANALYZED,
                 polygonClosed: true,
                 polygonValid: true,
                 validationError: null,
-                polygonArea: totalArea,
-                centroid,
-                sectors,
-                zoneResults,
-                overallScore,
-                deviationCount,
-                analysisSummary: summary,
                 layers: {
                     ...state.layers,
                     centroid: true,
@@ -289,11 +294,111 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
             };
         }
 
+        case "SET_CHAKRA_SCALE": {
+            if (state.phase !== Phase.ANALYZED) return state;
+            const nextState = { ...state, chakraScale: action.scale };
+            return recalculateAnalysis(nextState);
+        }
+
+        case "SET_CHAKRA_ROTATION": {
+            if (state.phase !== Phase.ANALYZED) return state;
+            const nextState = { ...state, chakraRotation: action.degrees };
+            return recalculateAnalysis(nextState);
+        }
+
         case "TOGGLE_LAYER": {
             return {
                 ...state,
                 layers: { ...state.layers, [action.layer]: !state.layers[action.layer] },
             };
+        }
+
+        case "SET_HOVERED_DIRECTION": {
+            if (state.phase !== Phase.ANALYZED) return state;
+            return { ...state, hoveredDirection: action.direction };
+        }
+
+        case "SET_SELECTED_DIRECTION": {
+            if (state.phase !== Phase.ANALYZED) return state;
+            // Toggle off if clicking the already selected direction
+            return {
+                ...state,
+                selectedDirection: state.selectedDirection === action.direction ? null : action.direction
+            };
+        }
+
+        case "SET_POINTER_DEGREE": {
+            if (state.phase !== Phase.ANALYZED) return state;
+
+            let autoSelectedDir = state.selectedDirection;
+            if (action.degree !== null) {
+                let deg = Math.floor(action.degree) % 360;
+                if (deg < 0) deg += 360;
+                // Subtract the rotation offset to query against the original dial, 
+                // because the user enters a degree relative to true north (the physical world),
+                // but our UI rotates the dial. Actually, the user reads the dial visually.
+                // If they enter "90", they want whatever wedge visually sits at "90" on the rotated dial.
+                // Since our `generate16Sectors` rotates the *start and end angles* of the wedges,
+                // `targetDeg` can be checked directly against the sector properties!
+                const sector = state.sectors.find(s => {
+                    let start = s.startAngle % 360;
+                    if (start < 0) start += 360;
+                    let end = s.endAngle % 360;
+                    if (end < 0) end += 360;
+
+                    if (start > end) return deg >= start || deg <= end;
+                    return deg >= start && deg <= end;
+                });
+
+                if (sector) autoSelectedDir = sector.direction;
+            }
+
+            return {
+                ...state,
+                pointerDegree: action.degree,
+                selectedDirection: autoSelectedDir
+            };
+        }
+
+        case "START_CROP": {
+            return { ...state, cropMode: true, cropRect: null };
+        }
+
+        case "SET_CROP_RECT": {
+            return { ...state, cropRect: action.rect };
+        }
+
+        case "CANCEL_CROP": {
+            return { ...state, cropMode: false, cropRect: null };
+        }
+
+        case "APPLY_CROP": {
+            return {
+                ...state,
+                image: action.url,
+                cropMode: false,
+                cropRect: null,
+            };
+        }
+
+        case "SELECT_VERTEX": {
+            return { ...state, selectedVertex: action.index };
+        }
+
+        case "MOVE_VERTEX": {
+            if (action.index < 0 || action.index >= state.polygon.length) return state;
+            const newPoly = state.polygon.map((p, i) =>
+                i === action.index
+                    ? { x: Math.max(0, p.x + action.dx), y: Math.max(0, p.y + action.dy) }
+                    : p
+            );
+            const nextState = { ...state, polygon: newPoly };
+            // Re-run full analysis if polygon is already closed
+            if (state.polygonClosed) {
+                const re = recalculateAnalysis(nextState);
+                return { ...re, selectedVertex: state.selectedVertex };
+            }
+            return nextState;
         }
 
         case "RESET": {
@@ -303,4 +408,38 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
         default:
             return state;
     }
+}
+
+/**
+ * Recomputes the entire analysis pipeline based on the current polygon, scale, and rotation. 
+ * Assumes the polygon is already validated to be non-self-intersecting.
+ */
+function recalculateAnalysis(state: ProjectState): ProjectState {
+    const ccwPoly = ensureCCW(state.polygon);
+    const totalArea = computePolygonArea(ccwPoly);
+    const centroid = computeCentroid(ccwPoly);
+
+    // Compute overlaps (this internally scales and rotates the 16 sectors)
+    const { sectors, overlaps } = computeSectorOverlaps(ccwPoly, state.chakraScale, state.chakraRotation);
+    const zoneResults = computeZoneScores(overlaps);
+    const overallScore = computeOverallScore(zoneResults);
+    const deviationCount = zoneResults.filter(z => z.status !== "good").length;
+
+    let summary: string;
+    if (overallScore >= 80) summary = "Excellent geometric balance. Minimal spatial deviation across zones.";
+    else if (overallScore >= 60) summary = "Good overall balance with some sector deviations. Targeted adjustment recommended.";
+    else if (overallScore >= 40) summary = "Moderate imbalance. Multiple sectors show significant area deviation.";
+    else summary = "Significant geometric imbalance detected. Comprehensive spatial review needed.";
+
+    return {
+        ...state,
+        polygonArea: totalArea,
+        centroid,
+        sectors,
+        sectorOverlaps: overlaps,
+        zoneResults,
+        overallScore,
+        deviationCount,
+        analysisSummary: summary,
+    };
 }

@@ -284,6 +284,47 @@
 }
 
 /* Sliders */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+input[type="range"]:focus {
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--surface);
+    border: 2.5px solid var(--accent-gold);
+    border-radius: 50%;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.1s;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--surface);
+    border: 2.5px solid var(--accent-gold);
+    border-radius: 50%;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.1s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+    transform: scale(1.15);
+}
+
 .info-row {
     display: flex;
     justify-content: space-between;
@@ -550,6 +591,33 @@
     font-size: 8px;
     color: var(--text-tertiary);
     font-family: var(--font-mono);
+}
+
+.view-bar-floating {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    box-shadow: var(--shadow-sm);
+    z-index: 10;
+}
+
+.view-bar-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.view-bar-item:hover {
+    opacity: 0.8 !important;
 }
 
 /* ── RIGHT ANALYSIS PANEL ── */
