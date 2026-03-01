@@ -27,6 +27,8 @@ export interface SectorOverlap {
 export interface ZoneResult {
     direction: VastuDirection;
     areaPercent: number;
+    areaPixel: number;
+    areaReal: number;
     score: number;        // 0–10 derived from overlap geometry
     status: "good" | "moderate" | "critical";
     remark: string;
@@ -40,6 +42,20 @@ export interface AnalysisResult {
     overallScore: number; // 0–100
     deviationCount: number;
     summary: string;
+}
+
+// ═══════════════════════════════════════════════════════
+// Devta Typings
+// ═══════════════════════════════════════════════════════
+
+export interface DevtaZone {
+    name: string;
+    englishAura?: string; // e.g. "Illusions", "Strength"
+    ring: "brahmasthan" | "inner" | "middle" | "outer" | "corner";
+    startAngle: number;
+    endAngle: number;
+    polygon: Point[];     // intersection bounded by the user's floor plan
+    color: string;
 }
 
 export type VastuDirection =

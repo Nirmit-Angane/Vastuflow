@@ -74,7 +74,7 @@ interface ShaktiChakraProps {
 }
 
 export default function ShaktiChakra({
-    centroid, scale, rotation, selectedDirection, hoveredDirection, onDirectionClick, onDirectionHover, entranceDegree
+    centroid, scale, rotation, selectedDirection, onDirectionClick, onDirectionHover, entranceDegree
 }: ShaktiChakraProps) {
 
     // Group transformation scales and aligns the chakra correctly inside the CanvasArea

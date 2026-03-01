@@ -13,6 +13,8 @@
     align-items: center;
     padding: 0 24px;
     box-shadow: var(--shadow-sm);
+    z-index: 50;
+    position: relative;
 }
 
 .step-bar-brand {
@@ -1153,30 +1155,6 @@ input[type="range"]::-moz-range-thumb:hover {
         height: 6px;
     }
 
-    .eye-btn {
-        width: 20px;
-        height: 20px;
-    }
-
-    .eye-btn svg {
-        width: 9px;
-        height: 9px;
-    }
-
-    /* Info rows */
-    .info-label {
-        font-size: 8px;
-    }
-
-    .info-value {
-        font-size: 9px;
-    }
-
-    .point-badge {
-        font-size: 8px;
-        padding: 2px 8px;
-    }
-
     .trace-hint {
         font-size: 8px;
         padding: 6px 8px;
@@ -1244,5 +1222,169 @@ input[type="range"]::-moz-range-thumb:hover {
 
     .score-num {
         font-size: 13px;
+    }
+}
+
+/* ── MODE SELECTOR (Workspace Landing Page) ── */
+.mode-selector-overlay {
+    position: relative;
+    height: calc(100vh - 52px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #F7F6F2;
+    overflow: hidden;
+    animation: fadeIn 0.8s ease-out;
+}
+
+/* Subtle Geometric Pattern Background */
+.mode-selector-overlay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(184, 134, 11, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(184, 134, 11, 0.05) 1px, transparent 1px),
+        linear-gradient(rgba(184, 134, 11, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(184, 134, 11, 0.02) 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+    background-position: center;
+    z-index: 0;
+}
+
+.mode-selector-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, transparent 20%, rgba(247, 246, 242, 0.9) 100%);
+    z-index: 1;
+}
+
+.vastu-bg-mandala {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 600px;
+    height: 600px;
+    opacity: 0.04;
+    pointer-events: none;
+    z-index: 1;
+    animation: slowRotate 150s linear infinite;
+}
+
+.mode-selector-content {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+    animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mode-selector-title {
+    font: 600 36px var(--font-display);
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    letter-spacing: 0.02em;
+    text-shadow: 0 2px 10px rgba(184, 134, 11, 0.1);
+}
+
+.mode-selector-subtitle {
+    font: 400 14px var(--font-mono);
+    color: var(--accent-gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.mode-selector {
+    display: flex;
+    gap: 32px;
+}
+
+.mode-card {
+    width: 280px;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(184, 134, 11, 0.15);
+    border-radius: 16px;
+    padding: 40px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 8px 32px rgba(28, 26, 21, 0.03);
+    position: relative;
+    overflow: hidden;
+}
+
+.mode-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+}
+
+.mode-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 16px 48px rgba(184, 134, 11, 0.12);
+    border-color: rgba(184, 134, 11, 0.4);
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.mode-card:hover::before {
+    opacity: 1;
+}
+
+.mode-icon {
+    font-size: 42px;
+    margin-bottom: 24px;
+    display: inline-block;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mode-card:hover .mode-icon {
+    transform: scale(1.1) translateY(-4px);
+}
+
+.mode-card h3 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 20px;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.mode-card p {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slowRotate {
+    from {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
     }
 }

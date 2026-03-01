@@ -34,10 +34,11 @@ export interface ReportData {
     floorPlan: ReportFloorPlan;
     analysis: ReportAnalysis;
     generatedAt: string;
+    canvasImageUrl?: string | null;  // SVG canvas snapshot (PNG data URL)
 }
 
 export function generateReport(data: ReportData): void {
-    const { floorPlan, analysis, generatedAt } = data;
+    const { floorPlan, analysis, generatedAt, canvasImageUrl } = data;
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const W = 210;
     let y = 20;
@@ -90,6 +91,29 @@ export function generateReport(data: ReportData): void {
     const lines = doc.splitTextToSize(analysis.summary, W - 40);
     doc.text(lines, 20, y);
     y += lines.length * 5 + 8;
+
+    // ── Canvas Map (floor plan + Shakti Chakra) ──
+    if (canvasImageUrl) {
+        // Section header
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(28, 26, 21);
+        doc.text("Floor Plan Layout & Vastu Zone Map", 20, y);
+        y += 6;
+
+        const mapW = W - 40;   // 170 mm wide
+        const mapH = Math.round(mapW * (800 / 840)); // keep ~840×800 ratio
+
+        // If the map won't fit on the current page, start a new one
+        if (y + mapH + 8 > 277) { doc.addPage(); y = 20; }
+
+        // Light border behind the image
+        doc.setDrawColor(226, 223, 216);
+        doc.setLineWidth(0.4);
+        doc.rect(20, y, mapW, mapH);
+        doc.addImage(canvasImageUrl, "PNG", 20, y, mapW, mapH);
+        y += mapH + 10;
+    }
 
     // ── Zone Analysis Table ──
     doc.setFont("helvetica", "bold");

@@ -4,12 +4,29 @@
 // ═══════════════════════════════════════════════════════
 
 import { Phase } from "./phase";
-import { Point, Sector, SectorOverlap, ZoneResult } from "@/core/geometry/types";
+import { Point, Sector, SectorOverlap, ZoneResult, DevtaZone } from "@/core/geometry/types";
 import {
-    computePolygonArea, computeCentroid, ensureCCW, isSimplePolygon,
+    computePolygonArea, computeCentroid, ensureCCW, isSimplePolygon
 } from "@/core/geometry/polygon";
-import { computeCoveringRadius } from "@/core/geometry/sectors";
+import { getDirectionForPoint, computeCoveringRadius } from "@/core/geometry/sectors";
 import { computeSectorOverlaps, computeZoneScores, computeOverallScore } from "@/core/geometry/overlap";
+import { compute32Devtas, getDevtaForPoint } from "@/core/geometry/devtas";
+import { VastuItem, PlacementStatus, VASTU_PLACEMENT_RULES, DEVTA_PLACEMENT_OVERRIDES } from "@/core/geometry/vastu-rules";
+
+export interface PlacedItem {
+    id: string;
+    type: VastuItem;
+    point: Point;
+    zone: string;
+    devta?: string;
+    status: PlacementStatus;
+    remedy?: {
+        loading?: boolean;
+        error?: string;
+        reasoning?: string;
+        fix?: string;
+    };
+}
 
 // ── Project State ──
 
@@ -40,6 +57,7 @@ export interface ProjectState {
     centroid: Point | null;
     sectors: Sector[];
     sectorOverlaps: SectorOverlap[];
+    devtaZones: DevtaZone[];
     chakraScale: number;          // 0.5 to 2.0 (default 1.0)
     chakraRotation: number;       // 0 to 360 (default 0)
     // Analysis
@@ -58,6 +76,10 @@ export interface ProjectState {
     cropRect: { x: number; y: number; w: number; h: number } | null;
     // Vertex editing
     selectedVertex: number | null;
+    // Placement Analysis
+    placedItems: PlacedItem[];
+    activePlacement: VastuItem | null;
+    activeTab: "overlay" | "items";
 }
 
 export function createEmptyProject(): ProjectState {
@@ -83,6 +105,7 @@ export function createEmptyProject(): ProjectState {
         centroid: null,
         sectors: [],
         sectorOverlaps: [],
+        devtaZones: [],
         chakraScale: 1.0,
         chakraRotation: 0,
         zoneResults: [],
@@ -103,6 +126,9 @@ export function createEmptyProject(): ProjectState {
         cropMode: false,
         cropRect: null,
         selectedVertex: null,
+        placedItems: [],
+        activePlacement: null,
+        activeTab: "overlay",
     };
 }
 
@@ -134,6 +160,14 @@ export type ProjectAction =
     | { type: "APPLY_CROP"; url: string }
     | { type: "SELECT_VERTEX"; index: number | null }
     | { type: "MOVE_VERTEX"; index: number; dx: number; dy: number }
+    | { type: "START_PLACEMENT"; itemType: VastuItem | null }
+    | { type: "PLACE_ITEM"; point: Point }
+    | { type: "REMOVE_PLACED_ITEM"; id: string }
+    | { type: "FETCH_REMEDY_START"; id: string }
+    | { type: "FETCH_REMEDY_SUCCESS"; id: string; reasoning: string; fix: string }
+    | { type: "FETCH_REMEDY_ERROR"; id: string; error: string }
+    | { type: "SET_ACTIVE_TAB"; tab: "overlay" | "items" }
+    | { type: "SKIP_TO_TRACE" }
     | { type: "RESET" };
 
 // ── Reducer ──
@@ -148,6 +182,14 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
                 image: action.url,
                 imageName: action.name,
                 imageSize: action.size,
+                activeTab: "overlay",
+            };
+        }
+
+        case "SKIP_TO_TRACE": {
+            return {
+                ...createEmptyProject(),
+                phase: Phase.TRACING,
             };
         }
 
@@ -241,9 +283,11 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
                     sectors: [],
                     sectorOverlaps: [],
                     zoneResults: [],
-                    overallScore: 0,
                     deviationCount: 0,
                     analysisSummary: "",
+                    placedItems: [],
+                    activePlacement: null,
+                    activeTab: "overlay",
                 };
             }
             return state;
@@ -401,6 +445,86 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
             return nextState;
         }
 
+        case "START_PLACEMENT": {
+            if (!state.centroid) return state; // Must have analyzed layout
+            return { ...state, activePlacement: action.itemType };
+        }
+
+        case "PLACE_ITEM": {
+            if (!state.activePlacement || !state.centroid) return state;
+            const dir = getDirectionForPoint(state.centroid, action.point, state.chakraRotation);
+            const devtaName = getDevtaForPoint(state.centroid, action.point, state.polygon, state.chakraRotation);
+
+            // Look up status from rules matrix. If zone isn't directly defined, fallback to 'good' or appropriate default
+            const ruleMap = VASTU_PLACEMENT_RULES[state.activePlacement];
+            let status = (ruleMap && ruleMap[dir as (keyof typeof ruleMap)]) ? ruleMap[dir as (keyof typeof ruleMap)] as PlacementStatus : "good";
+
+            // Check if Devta overrides this status
+            const devtaOverrides = DEVTA_PLACEMENT_OVERRIDES[state.activePlacement];
+            if (devtaName && devtaOverrides && devtaOverrides[devtaName]) {
+                status = devtaOverrides[devtaName];
+            }
+
+            const newItem: PlacedItem = {
+                id: crypto.randomUUID(),
+                type: state.activePlacement,
+                point: action.point,
+                zone: dir,
+                devta: devtaName,
+                status
+            };
+
+            return {
+                ...state,
+                placedItems: [...state.placedItems, newItem],
+                activePlacement: null // auto exit placement mode after drop
+            };
+        }
+
+        case "REMOVE_PLACED_ITEM": {
+            return {
+                ...state,
+                placedItems: state.placedItems.filter(i => i.id !== action.id)
+            };
+        }
+
+        case "FETCH_REMEDY_START": {
+            return {
+                ...state,
+                placedItems: state.placedItems.map(item =>
+                    item.id === action.id
+                        ? { ...item, remedy: { loading: true } }
+                        : item
+                )
+            };
+        }
+
+        case "FETCH_REMEDY_SUCCESS": {
+            return {
+                ...state,
+                placedItems: state.placedItems.map(item =>
+                    item.id === action.id
+                        ? { ...item, remedy: { loading: false, reasoning: action.reasoning, fix: action.fix } }
+                        : item
+                )
+            };
+        }
+
+        case "FETCH_REMEDY_ERROR": {
+            return {
+                ...state,
+                placedItems: state.placedItems.map(item =>
+                    item.id === action.id
+                        ? { ...item, remedy: { loading: false, error: action.error } }
+                        : item
+                )
+            };
+        }
+
+        case "SET_ACTIVE_TAB": {
+            return { ...state, activeTab: action.tab };
+        }
+
         case "RESET": {
             return createEmptyProject();
         }
@@ -421,7 +545,11 @@ function recalculateAnalysis(state: ProjectState): ProjectState {
 
     // Compute overlaps (this internally scales and rotates the 16 sectors)
     const { sectors, overlaps } = computeSectorOverlaps(ccwPoly, state.chakraScale, state.chakraRotation);
-    const zoneResults = computeZoneScores(overlaps);
+    const zoneResults = computeZoneScores(overlaps, state.scaleRatio);
+
+    // Compute Devta geometries
+    const devtas = compute32Devtas(centroid, computeCoveringRadius(centroid, ccwPoly) * state.chakraScale, ccwPoly, state.chakraRotation);
+
     const overallScore = computeOverallScore(zoneResults);
     const deviationCount = zoneResults.filter(z => z.status !== "good").length;
 
@@ -437,6 +565,7 @@ function recalculateAnalysis(state: ProjectState): ProjectState {
         centroid,
         sectors,
         sectorOverlaps: overlaps,
+        devtaZones: devtas,
         zoneResults,
         overallScore,
         deviationCount,

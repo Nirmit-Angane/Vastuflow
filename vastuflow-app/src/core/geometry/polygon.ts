@@ -149,3 +149,70 @@ export function boundingBox(pts: Point[]): {
     }
     return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
 }
+
+/**
+ * Mathematical intersection of an infinite ray (from p1 through p2) against a finite line segment (p3 to p4).
+ * Returns the Point of intersection if it lies strictly on the segment AND in the forward direction of the ray.
+ */
+function rayIntersectSegment(p1: Point, p2: Point, p3: Point, p4: Point): Point | null {
+    const denom = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
+    if (Math.abs(denom) < 1e-10) return null; // parallel or collinear
+
+    const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / denom;
+    const u = -((p1.x - p2.x) * (p1.y - p3.y) - (p1.y - p2.y) * (p1.x - p3.x)) / denom;
+
+    // t >= 0: intersection is in the forward direction of the ray.
+    // 0 <= u <= 1: intersection lies tightly within the bounding segment of p3->p4.
+    if (t >= 0 && u >= 0 && u <= 1) {
+        return {
+            x: p1.x + t * (p2.x - p1.x),
+            y: p1.y + t * (p2.y - p1.y)
+        };
+    }
+    return null;
+}
+
+/**
+ * Casts a ray from an origin point at a given angle (in degrees).
+ * Checks every edge of the polygon and returns the closest exact intersection point on the boundary.
+ */
+export function rayIntersectPolygon(origin: Point, angleDeg: Point | number, polygon: Point[]): Point | null {
+    const n = polygon.length;
+    if (n < 3) return null;
+
+    let dirX: number;
+    let dirY: number;
+
+    // Support either passing a direct angle (degrees) or a precomputed direction vector point.
+    if (typeof angleDeg === "number") {
+        // -90 to align with Up=North in SVG coordinate frames.
+        const rad = (angleDeg - 90) * (Math.PI / 180);
+        dirX = origin.x + Math.cos(rad) * 10000;
+        dirY = origin.y + Math.sin(rad) * 10000;
+    } else {
+        dirX = angleDeg.x;
+        dirY = angleDeg.y;
+    }
+
+    const rayTarget = { x: dirX, y: dirY };
+
+    let closestIntersection: Point | null = null;
+    let minDistance = Infinity;
+
+    for (let i = 0; i < n; i++) {
+        const p3 = polygon[i];
+        const p4 = polygon[(i + 1) % n];
+
+        const intersect = rayIntersectSegment(origin, rayTarget, p3, p4);
+        if (intersect) {
+            const dist = distance(origin, intersect);
+            // Ignore trivial intersections too close to origin if origin is on the boundary itself
+            if (dist > 1e-5 && dist < minDistance) {
+                minDistance = dist;
+                closestIntersection = intersect;
+            }
+        }
+    }
+
+    return closestIntersection;
+}

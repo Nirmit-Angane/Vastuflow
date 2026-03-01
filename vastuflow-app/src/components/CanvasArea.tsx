@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+
 import { ProjectState, ProjectAction } from "@/state/project-state";
 import { Phase, isPhaseAtLeast } from "@/state/phase";
 import { DIRECTION_COLORS, Point } from "@/core/geometry/types";
 import ShaktiChakra from "./ShaktiChakra";
+
 
 interface CanvasAreaProps {
     state: ProjectState;
@@ -29,7 +31,7 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
     const vbX = (BASE_W - vbW) / 2;
     const vbY = (BASE_H - vbH) / 2;
 
-    // Convert client coords → SVG viewBox coords
+    // Convert client coords ? SVG viewBox coords
     const clientToSVG = (cx: number, cy: number): Point | null => {
         const svg = svgRef.current;
         if (!svg) return null;
@@ -44,7 +46,15 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
         if (state.cropMode) return; // don't add vertices in crop mode
         if (!onCanvasClick) return;
         const p = clientToSVG(e.clientX, e.clientY);
-        if (p) onCanvasClick(p);
+        if (!p) return;
+
+        // Handle item placement
+        if (state.activePlacement && state.centroid) {
+            dispatch({ type: "PLACE_ITEM", point: p });
+            return;
+        }
+
+        onCanvasClick(p);
     };
 
     const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -109,7 +119,7 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     inset: "16px",
                     width: "calc(100% - 32px)",
                     height: "calc(100% - 32px)",
-                    cursor: state.cropMode ? "crosshair" : (phase === Phase.TRACING || state.scaleDrawing) ? "crosshair" : "default",
+                    cursor: state.cropMode ? "crosshair" : state.activePlacement ? "crosshair" : (phase === Phase.TRACING || state.scaleDrawing) ? "crosshair" : "default",
                     outline: "none",
                 }}
                 viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
@@ -120,7 +130,7 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
             >
-                {/* ── Uploaded floor plan image (rotated) ── */}
+                {/* -- Uploaded floor plan image (rotated) -- */}
                 {layers.background && state.image && (
                     <g transform={`rotate(${state.rotation}, 420, 400)`}>
                         <image
@@ -136,7 +146,7 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     </g>
                 )}
 
-                {/* ── Shakti Chakra Overlay ── */}
+                {/* -- Shakti Chakra Overlay -- */}
                 {layers.sectors && isPhaseAtLeast(phase, Phase.ANALYZED) && centroid && (
                     <ShaktiChakra
                         centroid={centroid}
@@ -150,7 +160,9 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     />
                 )}
 
-                {/* ── Zone fills (from real overlap clipped polygons) ── */}
+
+
+                {/* -- Zone fills (from real overlap clipped polygons) -- */}
                 {layers.zones && isPhaseAtLeast(phase, Phase.ANALYZED) && sectorOverlaps.length > 0 && (
                     <g style={{ pointerEvents: "none" }}>
                         {sectorOverlaps.map((ov, i) => {
@@ -183,7 +195,7 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     </g>
                 )}
 
-                {/* ── Traced polygon ── */}
+                {/* -- Traced polygon -- */}
                 {layers.trace && polygon.length > 0 && (
                     <>
                         <polygon
@@ -242,7 +254,7 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
 
 
 
-                {/* ── Brahm Bindu (computed centroid — only after CLOSE_POLYGON) ── */}
+                {/* -- Brahm Bindu (computed centroid � only after CLOSE_POLYGON) -- */}
                 {layers.centroid && isPhaseAtLeast(phase, Phase.ANALYZED) && centroid && (
                     <g pointerEvents="none">
                         <line x1={centroid.x - 8} y1={centroid.y} x2={centroid.x + 8} y2={centroid.y} stroke="var(--accent-gold)" strokeWidth="2" />
@@ -250,7 +262,7 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     </g>
                 )}
 
-                {/* ── Scale reference line ── */}
+                {/* -- Scale reference line -- */}
                 {
                     state.scaleLineStart && (
                         <g>
@@ -285,7 +297,7 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     )
                 }
 
-                {/* ── North compass ── */}
+                {/* -- North compass -- */}
                 <g transform="translate(760, 50)">
                     <circle cx="0" cy="0" r="22" stroke="var(--border)" strokeWidth="1.5" fill="var(--surface)" />
                     <polygon points="0,-15 -6,8 0,4 6,8" fill="var(--text-primary)" />
@@ -293,7 +305,28 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     <text x="0" y="33" textAnchor="middle" fontFamily="'DM Mono', monospace" fontSize="9" fill="var(--text-secondary)" fontWeight="500">N</text>
                 </g>
 
-                {/* ── Crop Selection Rectangle ── */}
+
+                {/* -- Placed Items -- */}
+                {state.placedItems.length > 0 && (
+                    <g className="placed-items">
+                        {state.placedItems.map(item => {
+                            const isBest = item.status === "best";
+                            const isGood = item.status === "good";
+                            const color = isBest ? "var(--good)" : isGood ? "var(--good-soft, #5cb85c)" : item.status === "worst" ? "var(--critical)" : "var(--warning)";
+                            // Use first letter of item as icon
+                            const letter = item.type.charAt(0);
+                            return (
+                                <g key={item.id} transform={`translate(${item.point.x}, ${item.point.y})`} style={{ pointerEvents: "auto", cursor: "help" }}>
+                                    <circle cx="0" cy="0" r="10" fill={color} stroke="var(--surface)" strokeWidth="2" />
+                                    <text x="0" y="3.5" textAnchor="middle" fontSize="10" fontWeight="700" fill="#fff" fontFamily="system-ui">{letter}</text>
+                                    <title>{`${item.type}\nZone: ${item.zone}\nDevta: ${item.devta || 'Main Grid'}\nStatus: ${item.status.toUpperCase()}`}</title>
+                                </g>
+                            );
+                        })}
+                    </g>
+                )}
+
+                {/* -- Crop Selection Rectangle -- */}
                 {state.cropMode && state.cropRect && state.cropRect.w > 4 && state.cropRect.h > 4 && (
                     <g pointerEvents="none">
                         {/* Dark overlay outside selection */}
@@ -327,7 +360,7 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                             textAnchor="middle" fontFamily="'DM Mono', monospace"
                             fontSize="10" fill="var(--accent-gold)" fontWeight="600"
                         >
-                            {Math.round(state.cropRect.w)} × {Math.round(state.cropRect.h)} px
+                            {Math.round(state.cropRect.w)} � {Math.round(state.cropRect.h)} px
                         </text>
                     </g>
                 )}
@@ -363,7 +396,7 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     isPhaseAtLeast(phase, Phase.ANALYZED) && (
                         <>
                             <span className="canvas-info-pill-dot" />
-                            <span>AREA: {state.polygonArea.toFixed(0)} px²</span>
+                            <span>AREA: {state.polygonArea.toFixed(0)} px�</span>
                         </>
                     )
                 }
@@ -409,5 +442,6 @@ const LAYER_COLORS: Record<string, string> = {
     centroid: "#8B6914",
     sectors: "#7A8CA0",
     zones: "#3D7A4F",
+
     labels: "#B0AB9E",
 };

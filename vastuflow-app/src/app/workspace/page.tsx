@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useCallback, useRef } from "react";
+import { useReducer, useCallback, useRef, useState } from "react";
 import { createEmptyProject, projectReducer } from "@/state/project-state";
 import { Phase, isPhaseAtLeast } from "@/state/phase";
 import { generateReport } from "@/lib/pdf-export";
@@ -8,9 +8,13 @@ import StepBar from "@/components/StepBar";
 import ToolPanel from "@/components/ToolPanel";
 import CanvasArea from "@/components/CanvasArea";
 import AnalysisPanel from "@/components/AnalysisPanel";
+import MapBuilder from "@/components/map-builder/MapBuilder";
 import "./workspace.css";
 
+type WorkspaceMode = "select" | "analysis" | "map-builder";
+
 export default function WorkspacePage() {
+    const [mode, setMode] = useState<WorkspaceMode>("select");
     const [state, dispatch] = useReducer(projectReducer, undefined, createEmptyProject);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -64,8 +68,49 @@ export default function WorkspacePage() {
     }, [state.phase, state.polygonClosed, state.scaleDrawing]);
 
     // ── PDF Export (only when ANALYZED) ──
-    const handleDownloadReport = useCallback(() => {
+    const handleDownloadReport = useCallback(async () => {
         if (!isPhaseAtLeast(state.phase, Phase.ANALYZED)) return;
+
+        // Capture the SVG canvas as a PNG data URL
+        let canvasImageUrl: string | null = null;
+        try {
+            const svgEl = document.querySelector<SVGSVGElement>(".canvas-area svg");
+            if (svgEl) {
+                const svgW = 840, svgH = 800;
+                // Clone so we can force a fixed viewBox for a clean export
+                const clone = svgEl.cloneNode(true) as SVGSVGElement;
+                clone.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
+                clone.setAttribute("width", String(svgW));
+                clone.setAttribute("height", String(svgH));
+
+                const svgBlob = new Blob(
+                    [`<?xml version="1.0" encoding="UTF-8"?>`, clone.outerHTML],
+                    { type: "image/svg+xml;charset=utf-8" }
+                );
+                const url = URL.createObjectURL(svgBlob);
+                canvasImageUrl = await new Promise<string>((resolve, reject) => {
+                    const img = new window.Image();
+                    img.onload = () => {
+                        const scale = 2; // 2× for crisp print quality
+                        const offscreen = document.createElement("canvas");
+                        offscreen.width = svgW * scale;
+                        offscreen.height = svgH * scale;
+                        const ctx = offscreen.getContext("2d")!;
+                        // White background so transparent SVG areas look clean
+                        ctx.fillStyle = "#faf9f6";
+                        ctx.fillRect(0, 0, offscreen.width, offscreen.height);
+                        ctx.drawImage(img, 0, 0, offscreen.width, offscreen.height);
+                        URL.revokeObjectURL(url);
+                        resolve(offscreen.toDataURL("image/png"));
+                    };
+                    img.onerror = reject;
+                    img.src = url;
+                });
+            }
+        } catch (err) {
+            console.warn("Canvas snapshot failed, continuing without map:", err);
+        }
+
         generateReport({
             floorPlan: {
                 name: state.imageName ?? "Untitled Project",
@@ -89,6 +134,7 @@ export default function WorkspacePage() {
                 summary: state.analysisSummary,
             },
             generatedAt: new Date().toLocaleString(),
+            canvasImageUrl,
         });
     }, [state]);
 
@@ -122,6 +168,84 @@ export default function WorkspacePage() {
         URL.revokeObjectURL(url);
     }, [state]);
 
+    // ── Map Builder → Analysis bridge ──
+    const handleMapAnalyze = useCallback((polygon: { x: number; y: number }[]) => {
+        // Feed the polygon from map builder into the analysis pipeline
+        polygon.forEach((pt, i) => {
+            if (i === 0) {
+                dispatch({ type: "SKIP_TO_TRACE" });
+            }
+            dispatch({ type: "ADD_VERTEX", point: pt });
+        });
+        dispatch({ type: "CLOSE_POLYGON" });
+        setMode("analysis");
+    }, []);
+
+    // ═════════════════════════════════════════════════════════════════════
+    // RENDER
+    // ═════════════════════════════════════════════════════════════════════
+
+    // Mode: Map Builder
+    if (mode === "map-builder") {
+        return (
+            <MapBuilder
+                onExit={() => setMode("select")}
+                onAnalyze={handleMapAnalyze}
+            />
+        );
+    }
+
+    // Mode: Select (landing)
+    if (mode === "select") {
+        return (
+            <div className="mode-selector-overlay">
+                {/* Vastu Mandala Background Accent */}
+                <svg className="vastu-bg-mandala" viewBox="0 0 100 100" fill="none" stroke="var(--accent-gold)" strokeWidth="0.5">
+                    <circle cx="50" cy="50" r="48" />
+                    <circle cx="50" cy="50" r="38" />
+                    <rect x="15" y="15" width="70" height="70" transform="rotate(45 50 50)" />
+                    <rect x="15" y="15" width="70" height="70" />
+                    <circle cx="50" cy="50" r="12" />
+                    <path d="M50 2 L50 98 M2 50 L98 50 M16 16 L84 84 M16 84 L84 16" strokeDasharray="1 2" />
+                </svg>
+
+                <div className="mode-selector-content">
+                    <div style={{ textAlign: "center" }}>
+                        <h1 className="mode-selector-title">
+                            VastuFlow
+                        </h1>
+                        <p className="mode-selector-subtitle">
+                            Choose how you&apos;d like to start
+                        </p>
+                    </div>
+
+                    <div className="mode-selector">
+                        <div className="mode-card" onClick={() => setMode("analysis")}>
+                            <div className="mode-icon">📊</div>
+                            <h3>Start Analysis</h3>
+                            <p>
+                                Upload an existing floor plan image.<br />
+                                Trace the building outline and run<br />
+                                Vastu analysis with scoring & remedies.
+                            </p>
+                        </div>
+
+                        <div className="mode-card" onClick={() => setMode("map-builder")}>
+                            <div className="mode-icon">✏️</div>
+                            <h3>Create Map</h3>
+                            <p>
+                                Draw walls from scratch with precise<br />
+                                measurements in feet. Add rooms,<br />
+                                furniture & objects. Then analyze.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Mode: Analysis (existing flow)
     return (
         <div>
             <input
@@ -147,6 +271,7 @@ export default function WorkspacePage() {
                 />
                 <AnalysisPanel
                     state={state}
+                    dispatch={dispatch}
                     onDownloadReport={handleDownloadReport}
                     onExportJSON={handleExportJSON}
                 />

@@ -1,7 +1,8 @@
 "use client";
-
+import React from "react";
 import { ProjectState, ProjectAction } from "@/state/project-state";
 import { Phase, isPhaseAtLeast } from "@/state/phase";
+import PlacementPanel from "./PlacementPanel";
 
 interface ToolPanelProps {
     state: ProjectState;
@@ -11,7 +12,7 @@ interface ToolPanelProps {
 }
 
 export default function ToolPanel({ state, dispatch, onFileSelect, onFileDrop }: ToolPanelProps) {
-    const { phase, imageName, imageSize, rotation, scaleRatio, polygon, polygonValid, validationError } = state;
+    const { phase, imageName, imageSize, rotation, scaleRatio, polygon, polygonValid, validationError, activeTab } = state;
 
     return (
         <div className="tool-panel">
@@ -314,96 +315,135 @@ export default function ToolPanel({ state, dispatch, onFileSelect, onFileDrop }:
                 </div>
             )}
 
-            {/* ── Analysis Summary ── */}
+            {/* ── ALIGNED OR LATER: Two-Tab View ── */}
             {isPhaseAtLeast(phase, Phase.ANALYZED) && (
                 <>
-                    <div className="panel-section active-section">
-                        <div className="panel-section-title" style={{ color: "var(--good)" }}>✓ Analysis Complete</div>
-                        <div className="point-badge" style={{ color: "var(--good)", borderColor: "rgba(61,122,79,0.25)", background: "var(--good-bg)" }}>
-                            {state.overallScore}/100 Geometric Score
-                        </div>
-                        <div className="trace-hint">{state.analysisSummary}</div>
-                        <div style={{ fontSize: 9, color: "var(--text-secondary)", fontFamily: "var(--font-mono)", lineHeight: 1.7 }}>
-                            Polygon Area: {state.polygonArea.toFixed(1)} px²<br />
-                            Centroid: ({state.centroid?.x.toFixed(1)}, {state.centroid?.y.toFixed(1)})<br />
-                            Deviations: {state.deviationCount} / 16 sectors
-                        </div>
+                    <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}>
+                        <button
+                            className="tab-btn"
+                            style={{
+                                flex: 1, padding: "10px 0", background: "none", border: "none",
+                                borderBottom: activeTab === "overlay" ? "2px solid var(--accent-gold)" : "2px solid transparent",
+                                color: activeTab === "overlay" ? "var(--accent-gold)" : "var(--text-secondary)",
+                                fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, cursor: "pointer", letterSpacing: "0.06em"
+                            }}
+                            onClick={() => dispatch({ type: "SET_ACTIVE_TAB", tab: "overlay" })}
+                        >
+                            OVERLAY & INFO
+                        </button>
+                        <button
+                            className="tab-btn"
+                            style={{
+                                flex: 1, padding: "10px 0", background: "none", border: "none",
+                                borderBottom: activeTab === "items" ? "2px solid var(--text-primary)" : "2px solid transparent",
+                                color: activeTab === "items" ? "var(--text-primary)" : "var(--text-secondary)",
+                                fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 600, cursor: "pointer", letterSpacing: "0.06em"
+                            }}
+                            onClick={() => dispatch({ type: "SET_ACTIVE_TAB", tab: "items" })}
+                        >
+                            PLACE ITEMS
+                        </button>
                     </div>
 
-                    <div className="panel-section">
-                        <div className="panel-section-title">Shakti Chakra Overlay</div>
-                        <div className="trace-hint" style={{ marginBottom: 16 }}>
-                            Adjust the size and orientation of the 16 Vastu directional zones.
-                        </div>
-                        <div className="info-row" style={{ marginTop: 6, marginBottom: 4 }}>
-                            <span className="info-label">SCALE</span>
-                            <span className="info-value">{state.chakraScale.toFixed(2)}x</span>
-                        </div>
-                        <input
-                            type="range"
-                            min="0.5" max="2.0" step="0.05"
-                            value={state.chakraScale}
-                            onChange={(e) => dispatch({ type: "SET_CHAKRA_SCALE", scale: parseFloat(e.target.value) })}
-                            style={{
-                                width: "100%", height: 3, appearance: "none",
-                                background: `linear-gradient(90deg, var(--accent-gold) ${((state.chakraScale - 0.5) / 1.5) * 100}%, var(--surface-3) ${((state.chakraScale - 0.5) / 1.5) * 100}%)`,
-                                borderRadius: 2, cursor: "pointer", marginBottom: 16
-                            }}
-                        />
+                    <div style={{ flex: 1, overflowY: "auto" }}>
+                        {activeTab === "overlay" && (
+                            <>
+                                <div className="panel-section active-section">
+                                    <div className="panel-section-title" style={{ color: "var(--good)" }}>✓ Analysis Complete</div>
+                                    <div className="point-badge" style={{ color: "var(--good)", borderColor: "rgba(61,122,79,0.25)", background: "var(--good-bg)" }}>
+                                        {state.overallScore}/100 Geometric Score
+                                    </div>
+                                    <div className="trace-hint">{state.analysisSummary}</div>
+                                    <div style={{ fontSize: 9, color: "var(--text-secondary)", fontFamily: "var(--font-mono)", lineHeight: 1.7 }}>
+                                        Polygon Area: {state.polygonArea.toFixed(1)} px²<br />
+                                        Centroid: ({state.centroid?.x.toFixed(1)}, {state.centroid?.y.toFixed(1)})<br />
+                                        Deviations: {state.deviationCount} / 16 sectors
+                                    </div>
+                                </div>
 
-                        <div className="info-row" style={{ marginBottom: 4 }}>
-                            <span className="info-label">ROTATION</span>
-                            <span className="info-value">{state.chakraRotation.toFixed(1)}°</span>
-                        </div>
-                        <input
-                            type="range"
-                            min="-180" max="180" step="1"
-                            value={state.chakraRotation}
-                            onChange={(e) => dispatch({ type: "SET_CHAKRA_ROTATION", degrees: parseInt(e.target.value, 10) })}
-                            style={{
-                                width: "100%", height: 3, appearance: "none",
-                                background: `linear-gradient(90deg, var(--accent-gold) ${((state.chakraRotation + 180) / 360) * 100}%, var(--surface-3) ${((state.chakraRotation + 180) / 360) * 100}%)`,
-                                borderRadius: 2, cursor: "pointer", marginBottom: 16
-                            }}
-                        />
+                                <div className="panel-section">
+                                    <div className="panel-section-title">Shakti Chakra Overlay</div>
+                                    <div className="trace-hint" style={{ marginBottom: 16 }}>
+                                        Adjust the size and orientation of the 16 Vastu directional zones.
+                                    </div>
+                                    <div className="info-row" style={{ marginTop: 6, marginBottom: 4 }}>
+                                        <span className="info-label">SCALE</span>
+                                        <span className="info-value">{state.chakraScale.toFixed(2)}x</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="0.5" max="2.0" step="0.05"
+                                        value={state.chakraScale}
+                                        onChange={(e) => dispatch({ type: "SET_CHAKRA_SCALE", scale: parseFloat(e.target.value) })}
+                                        style={{
+                                            width: "100%", height: 3, appearance: "none",
+                                            background: `linear-gradient(90deg, var(--accent-gold) ${((state.chakraScale - 0.5) / 1.5) * 100}%, var(--surface-3) ${((state.chakraScale - 0.5) / 1.5) * 100}%)`,
+                                            borderRadius: 2, cursor: "pointer", marginBottom: 16
+                                        }}
+                                    />
 
-                        <div className="info-row" style={{ marginBottom: 6 }}>
-                            <span className="info-label">ENTRANCE POINTER (°)</span>
-                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                                <input
-                                    type="number"
-                                    min="0" max="360" step="1"
-                                    placeholder="e.g. 103"
-                                    value={state.pointerDegree ?? ""}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        const degree = val === "" ? null : parseInt(val, 10);
-                                        dispatch({ type: "SET_POINTER_DEGREE", degree });
-                                    }}
-                                    style={{
-                                        width: 52, padding: "3px 6px", border: "1px solid var(--border)",
-                                        borderRadius: 4, background: "var(--surface)", color: "var(--text-primary)",
-                                        fontFamily: "var(--font-mono)", fontSize: 10, textAlign: "right",
-                                        outline: "none"
-                                    }}
-                                />
-                                <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>°</span>
-                            </div>
-                        </div>
+                                    <div className="info-row" style={{ marginBottom: 4 }}>
+                                        <span className="info-label">ROTATION</span>
+                                        <span className="info-value">{state.chakraRotation.toFixed(1)}°</span>
+                                    </div>
+                                    <input
+                                        type="range"
+                                        min="-180" max="180" step="1"
+                                        value={state.chakraRotation}
+                                        onChange={(e) => dispatch({ type: "SET_CHAKRA_ROTATION", degrees: parseInt(e.target.value, 10) })}
+                                        style={{
+                                            width: "100%", height: 3, appearance: "none",
+                                            background: `linear-gradient(90deg, var(--accent-gold) ${((state.chakraRotation + 180) / 360) * 100}%, var(--surface-3) ${((state.chakraRotation + 180) / 360) * 100}%)`,
+                                            borderRadius: 2, cursor: "pointer", marginBottom: 16
+                                        }}
+                                    />
+
+                                    <div className="info-row" style={{ marginBottom: 6 }}>
+                                        <span className="info-label">ENTRANCE POINTER (°)</span>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                            <input
+                                                type="number"
+                                                min="0" max="360" step="1"
+                                                placeholder="e.g. 103"
+                                                value={state.pointerDegree ?? ""}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    const degree = val === "" ? null : parseInt(val, 10);
+                                                    dispatch({ type: "SET_POINTER_DEGREE", degree });
+                                                }}
+                                                style={{
+                                                    width: 52, padding: "3px 6px", border: "1px solid var(--border)",
+                                                    borderRadius: 4, background: "var(--surface)", color: "var(--text-primary)",
+                                                    fontFamily: "var(--font-mono)", fontSize: 10, textAlign: "right",
+                                                    outline: "none"
+                                                }}
+                                            />
+                                            <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>°</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="panel-section">
+                                    <div className="panel-section-title">Parameters</div>
+                                    <div className="info-row"><span className="info-label">ROTATION</span><span className="info-value">{(rotation ?? 0).toFixed(1)}°</span></div>
+                                    <div className="info-row"><span className="info-label">SCALE</span><span className="info-value">{scaleRatio > 0 ? `${scaleRatio.toFixed(4)} ${state.scaleUnit}/px` : "Not set"}</span></div>
+                                </div>
+                            </>
+                        )}
+                        {activeTab === "items" && (
+                            <PlacementPanel state={state} dispatch={dispatch} />
+                        )}
                     </div>
                 </>
             )}
 
-            {/* ── Alignment info (read-only when past alignment) ── */}
-            {isPhaseAtLeast(phase, Phase.TRACING) && (
+            {/* ── Alignment info (read-only when past alignment, but hide if in ANALYZED cause it's in overlay tab) ── */}
+            {isPhaseAtLeast(phase, Phase.TRACING) && !isPhaseAtLeast(phase, Phase.ANALYZED) && (
                 <div className="panel-section">
                     <div className="panel-section-title">Parameters</div>
                     <div className="info-row"><span className="info-label">ROTATION</span><span className="info-value">{(rotation ?? 0).toFixed(1)}°</span></div>
                     <div className="info-row"><span className="info-label">SCALE</span><span className="info-value">{scaleRatio > 0 ? `${scaleRatio.toFixed(4)} ${state.scaleUnit}/px` : "Not set"}</span></div>
                 </div>
             )}
-
-
 
             {/* ── Reset ── */}
             {isPhaseAtLeast(phase, Phase.ANALYZED) && (

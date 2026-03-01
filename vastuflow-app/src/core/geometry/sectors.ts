@@ -91,3 +91,40 @@ export function computeCoveringRadius(centroid: Point, polygon: Point[]): number
     }
     return maxDist * 1.2; // 20% safety margin
 }
+
+/**
+ * Determine which Vastu direction a specific point falls into,
+ * based on the centroid and current chakra rotation.
+ */
+export function getDirectionForPoint(centroid: Point, point: Point, rotationOffset: number = 0): string {
+    const dx = point.x - centroid.x;
+    const dy = point.y - centroid.y;
+    // Math.atan2 gives angle from positive X axis (right) in radians, -PI to PI
+    // Screen coords: +Y is down.
+    const screenRad = Math.atan2(dy, dx);
+    let compassDeg = (screenRad * 180 / Math.PI) + 90; // Convert to compass (0=North, +Y down means clockwise)
+
+    // Adjust for the user's manual chakra rotation mapping
+    compassDeg = compassDeg - rotationOffset;
+
+    compassDeg = ((compassDeg % 360) + 360) % 360; // Normalize 0-360
+
+    // Find the sector that contains this angle
+    const SECTOR_ANGLE = 360 / 16;
+    for (let i = 0; i < DIRECTION_ORDER.length; i++) {
+        const dir = DIRECTION_ORDER[i];
+        let startAngle = i * SECTOR_ANGLE - SECTOR_ANGLE / 2;
+        let endAngle = startAngle + SECTOR_ANGLE;
+
+        startAngle = ((startAngle % 360) + 360) % 360;
+        endAngle = ((endAngle % 360) + 360) % 360;
+
+        // Special case for North (crosses 0/360 boundary)
+        if (startAngle > endAngle) {
+            if (compassDeg >= startAngle || compassDeg < endAngle) return dir;
+        } else {
+            if (compassDeg >= startAngle && compassDeg < endAngle) return dir;
+        }
+    }
+    return 'N'; // Fallback
+}

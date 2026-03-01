@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "animejs": "^3.2.2",
     "framer-motion": "^12.34.3",
     "jspdf": "^4.2.0",
     "konva": "^10.2.0",
@@ -16,9 +17,11 @@
     "pdfjs-dist": "^5.4.624",
     "react": "^18",
     "react-dom": "^18",
-    "react-konva": "^19.2.2"
+    "react-konva": "^19.2.2",
+    "recharts": "^3.7.0"
   },
   "devDependencies": {
+    "@types/animejs": "^3.1.12",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

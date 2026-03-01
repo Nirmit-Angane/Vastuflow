@@ -63,7 +63,7 @@ export function computeSectorOverlaps(polygon: Point[], chakraScale: number = 1.
  * - Sectors with 0% overlap (polygon doesn't reach that zone) → score 0
  * - Status thresholds: good ≥ 7, moderate ≥ 4, critical < 4
  */
-export function computeZoneScores(overlaps: SectorOverlap[]): ZoneResult[] {
+export function computeZoneScores(overlaps: SectorOverlap[], scaleRatio: number = 0): ZoneResult[] {
     return overlaps.map((ov) => {
         const score = computeSingleZoneScore(ov);
         const status: ZoneResult["status"] =
@@ -73,6 +73,8 @@ export function computeZoneScores(overlaps: SectorOverlap[]): ZoneResult[] {
         return {
             direction: ov.direction,
             areaPercent: ov.percentOfTotal,
+            areaPixel: ov.clippedArea,
+            areaReal: ov.clippedArea * scaleRatio * scaleRatio,
             score,
             status,
             remark,
