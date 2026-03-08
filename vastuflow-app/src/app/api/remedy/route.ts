@@ -8,7 +8,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
-        const apiKey = process.env.GROQ_API_KEY || "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";
+        const apiKey = process.env.GROQ_API_KEY;
 
         if (!apiKey) {
             return NextResponse.json({ error: "Groq API Key not configured" }, { status: 500 });

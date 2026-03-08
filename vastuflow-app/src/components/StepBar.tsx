@@ -21,8 +21,8 @@ const PHASE_STEPS: { phase: Phase; label: string }[] = [
 
 export default function StepBar({ phase }: StepBarProps) {
     const currentIdx = phaseIndex(phase);
-
     return (
+
         <div className="step-bar">
             <div className="step-bar-brand">
                 Vastu<span>Flow</span>

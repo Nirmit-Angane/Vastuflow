@@ -5,9 +5,116 @@ import { useState, useRef, useEffect } from "react";
 import { ProjectState, ProjectAction } from "@/state/project-state";
 import { Phase, isPhaseAtLeast } from "@/state/phase";
 import { DIRECTION_COLORS, Point } from "@/core/geometry/types";
+import { MapFurniture, MapText } from "@/components/map-builder/MapBuilder";
 import ShaktiChakra from "./ShaktiChakra";
 
-
+const FURN_ICONS: Record<string, (w: number, h: number) => React.ReactNode> = {
+    bed: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={4} fill="#D2C8B8" stroke="#8B7D6B" strokeWidth={1} />
+        <rect x={w * 0.05} y={h * 0.05} width={w * 0.9} height={h * 0.6} rx={2} fill="#E1D7C6" stroke="#8B7D6B" strokeWidth={0.5} />
+        <rect x={w * 0.08} y={h * 0.68} width={w * 0.38} height={h * 0.25} rx={3} fill="#F4EFE6" stroke="#8B7D6B" strokeWidth={1} />
+        <rect x={w * 0.54} y={h * 0.68} width={w * 0.38} height={h * 0.25} rx={3} fill="#F4EFE6" stroke="#8B7D6B" strokeWidth={1} />
+    </>),
+    sofa: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={2} fill="#BBAA94" stroke="#8B7D6B" strokeWidth={1} />
+        <rect x={w * 0.1} y={0} width={w * 0.8} height={h * 0.7} rx={1} fill="#CFC0AD" stroke="#8B7D6B" strokeWidth={0.5} />
+        <line x1={w * 0.5} y1={0} x2={w * 0.5} y2={h * 0.7} stroke="#8B7D6B" strokeWidth={0.5} />
+    </>),
+    table: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={3} fill="#A28C73" stroke="#685744" strokeWidth={1.5} />
+        <rect x={w * 0.1} y={h * 0.1} width={w * 0.8} height={h * 0.8} rx={1} fill="none" stroke="#685744" strokeWidth={0.5} opacity={0.5} />
+    </>),
+    chair: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={w * 0.5} fill="#D5CBBB" stroke="#8B7D6B" strokeWidth={1} />
+        <path d={`M${w * 0.1} ${h * 0.5} Q${w * 0.5} ${h * 0.1} ${w * 0.9} ${h * 0.5}`} fill="none" stroke="#8B7D6B" strokeWidth={2} strokeLinecap="round" />
+        <circle cx={w * 0.5} cy={h * 0.6} r={w * 0.2} fill="#E8E2D9" stroke="#8B7D6B" strokeWidth={0.5} />
+    </>),
+    tv: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={1} fill="#4A4A4A" stroke="#2B2B2B" strokeWidth={1.5} />
+        <rect x={1} y={1} width={w - 2} height={h - 2} fill="#232323" />
+        <line x1={w * 0.3} y1={h} x2={w * 0.7} y2={h} stroke="#2B2B2B" strokeWidth={2} />
+    </>),
+    plant: (w, h) => (<>
+        <circle cx={w * 0.5} cy={h * 0.5} r={w * 0.45} fill="#7A8B6B" stroke="#5C6B4E" strokeWidth={1} />
+        <circle cx={w * 0.5} cy={h * 0.5} r={w * 0.3} fill="#8DA67A" stroke="#5C6B4E" strokeWidth={0.5} />
+        <path d={`M${w * 0.5} ${h * 0.5} L${w * 0.2} ${h * 0.2} M${w * 0.5} ${h * 0.5} L${w * 0.8} ${h * 0.2} M${w * 0.5} ${h * 0.5} L${w * 0.8} ${h * 0.8} M${w * 0.5} ${h * 0.5} L${w * 0.2} ${h * 0.8}`} stroke="#5C6B4E" strokeWidth={1} strokeLinecap="round" />
+    </>),
+    sink: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={2} fill="#E8EDF2" stroke="#8B7D6B" strokeWidth={1} />
+        <rect x={w * 0.1} y={h * 0.1} width={w * 0.8} height={h * 0.6} rx={w * 0.4} fill="#FFFFFF" stroke="#8B7D6B" strokeWidth={0.5} />
+        <circle cx={w * 0.5} cy={h * 0.4} r={w * 0.08} fill="#4A4A4A" />
+        <circle cx={w * 0.5} cy={h * 0.85} r={w * 0.05} fill="#A0A0A0" />
+    </>),
+    toilet: (w, h) => (<>
+        <rect x={w * 0.1} y={0} width={w * 0.8} height={h * 0.4} rx={2} fill="#FFFFFF" stroke="#8B7D6B" strokeWidth={1} />
+        <ellipse cx={w * 0.5} cy={h * 0.6} rx={w * 0.35} ry={h * 0.35} fill="#FFFFFF" stroke="#8B7D6B" strokeWidth={1} />
+        <ellipse cx={w * 0.5} cy={h * 0.6} rx={w * 0.25} ry={h * 0.25} fill="none" stroke="#D1CEC5" strokeWidth={0.8} />
+    </>),
+    bathtub: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={3} fill="#FFFFFF" stroke="#8B7D6B" strokeWidth={1.2} />
+        <rect x={w * 0.05} y={h * 0.08} width={w * 0.9} height={h * 0.84} rx={h * 0.3} fill="#F7F9FA" stroke="#D1CEC5" strokeWidth={0.8} />
+        <circle cx={w * 0.85} cy={h * 0.5} r={w * 0.03} fill="#4A4A4A" />
+    </>),
+    desk: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={1} fill="#C6B5A1" stroke="#8B7D6B" strokeWidth={1} />
+        <rect x={w * 0.1} y={h * 0.2} width={w * 0.8} height={h * 0.6} fill="#DCH8C4" />
+        <rect x={w * 0.6} y={1} width={w * 0.3} height={h * 0.3} fill="#F0F0F0" stroke="#A9A9A9" strokeWidth={0.5} />
+    </>),
+    dining: (w, h) => (<>
+        <rect x={w * 0.15} y={h * 0.15} width={w * 0.7} height={h * 0.7} rx={w * 0.35} fill="#A28C73" stroke="#685744" strokeWidth={1} />
+        <circle cx={w * 0.5} cy={h * 0.05} r={w * 0.12} fill="#D5CBBB" stroke="#8B7D6B" strokeWidth={0.5} />
+        <circle cx={w * 0.5} cy={h * 0.95} r={w * 0.12} fill="#D5CBBB" stroke="#8B7D6B" strokeWidth={0.5} />
+        <circle cx={w * 0.05} cy={h * 0.5} r={w * 0.12} fill="#D5CBBB" stroke="#8B7D6B" strokeWidth={0.5} />
+        <circle cx={w * 0.95} cy={h * 0.5} r={w * 0.12} fill="#D5CBBB" stroke="#8B7D6B" strokeWidth={0.5} />
+    </>),
+    rug: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={1} fill="#DCD5CB" stroke="#B8A793" strokeWidth={1} strokeDasharray="2 1" />
+        <rect x={w * 0.05} y={h * 0.05} width={w * 0.9} height={h * 0.9} fill="none" stroke="#B8A793" strokeWidth={0.5} opacity={0.6} />
+    </>),
+    wardrobe: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={1} fill="#A28C73" stroke="#685744" strokeWidth={1} />
+        <line x1={w * 0.5} y1={0} x2={w * 0.5} y2={h} stroke="#685744" strokeWidth={0.8} />
+        <line x1={w * 0.4} y1={h * 0.5} x2={w * 0.45} y2={h * 0.5} stroke="#685744" strokeWidth={1.5} />
+        <line x1={w * 0.6} y1={h * 0.5} x2={w * 0.55} y2={h * 0.5} stroke="#685744" strokeWidth={1.5} />
+    </>),
+    washer: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={3} fill="#F0EDE8" stroke="#8B7D6B" strokeWidth={1} />
+        <ellipse cx={w * 0.5} cy={h * 0.5} rx={w * 0.3} ry={h * 0.3} fill="#DDD8D0" stroke="#8B7D6B" strokeWidth={0.8} />
+        <circle cx={w * 0.5} cy={h * 0.35} r={2} fill="#8B7D6B" />
+    </>),
+    stove: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={2} fill="#E0DDD8" stroke="#8B7D6B" strokeWidth={1.2} />
+        <circle cx={w * 0.28} cy={h * 0.32} r={w * 0.14} fill="none" stroke="#8B7D6B" strokeWidth={1} />
+        <circle cx={w * 0.72} cy={h * 0.32} r={w * 0.14} fill="none" stroke="#8B7D6B" strokeWidth={1} />
+        <circle cx={w * 0.28} cy={h * 0.68} r={w * 0.14} fill="none" stroke="#8B7D6B" strokeWidth={1} />
+        <circle cx={w * 0.72} cy={h * 0.68} r={w * 0.14} fill="none" stroke="#8B7D6B" strokeWidth={1} />
+    </>),
+    fridge: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={3} fill="#E8E5E0" stroke="#8B7D6B" strokeWidth={1.2} />
+        <line x1={2} y1={h * 0.35} x2={w - 2} y2={h * 0.35} stroke="#8B7D6B" strokeWidth={1} />
+        <rect x={w * 0.78} y={h * 0.08} width={3} height={h * 0.2} rx={1} fill="#8B7D6B" />
+        <rect x={w * 0.78} y={h * 0.42} width={3} height={h * 0.2} rx={1} fill="#8B7D6B" />
+    </>),
+    singledoor: (w, h) => (<>
+        <rect x={0} y={0} width={w * 0.2} height={h} fill="#FFF" stroke="#8B7D6B" strokeWidth={1} />
+        <path d={`M${w * 0.2} ${h} A${w * 0.8} ${h} 0 0 0 ${w} 0`} fill="none" stroke="#8B7D6B" strokeWidth={1} strokeDasharray="4 2" />
+        <line x1={w * 0.2} y1={h} x2={w * 0.2} y2={0} stroke="#8B7D6B" />
+        <line x1={w * 0.2} y1={h} x2={w} y2={h} stroke="#8B7D6B" strokeDasharray="2 2" />
+    </>),
+    doubledoor: (w, h) => (<>
+        <rect x={0} y={0} width={w * 0.15} height={h} fill="#FFF" stroke="#8B7D6B" strokeWidth={1} />
+        <rect x={w * 0.85} y={0} width={w * 0.15} height={h} fill="#FFF" stroke="#8B7D6B" strokeWidth={1} />
+        <path d={`M${w * 0.15} ${h} A${w * 0.35} ${h} 0 0 0 ${w * 0.5} 0`} fill="none" stroke="#8B7D6B" strokeWidth={1} strokeDasharray="3 2" />
+        <path d={`M${w * 0.85} ${h} A${w * 0.35} ${h} 0 0 1 ${w * 0.5} 0`} fill="none" stroke="#8B7D6B" strokeWidth={1} strokeDasharray="3 2" />
+        <line x1={w * 0.15} y1={h} x2={w * 0.5} y2={h} stroke="#8B7D6B" strokeDasharray="2 2" />
+        <line x1={w * 0.85} y1={h} x2={w * 0.5} y2={h} stroke="#8B7D6B" strokeDasharray="2 2" />
+    </>),
+    window: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} rx={1} fill="#FFF" stroke="#8B7D6B" strokeWidth={1} />
+        <line x1={w * 0.5} y1={0} x2={w * 0.5} y2={h} stroke="#8B7D6B" strokeWidth={1} />
+        <line x1={0} y1={h * 0.5} x2={w} y2={h * 0.5} stroke="#8B7D6B" strokeWidth={0.5} />
+    </>),
+};
 interface CanvasAreaProps {
     state: ProjectState;
     dispatch: React.Dispatch<ProjectAction>;
@@ -143,6 +250,34 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                             opacity="0.85"
                             style={{ pointerEvents: "none" }}
                         />
+                    </g>
+                )}
+
+                {/* -- MapBuilder Rendered Furniture & Objects -- */}
+                {state.mapFurniture && state.mapFurniture.length > 0 && (
+                    <g className="map-furniture-layer">
+                        {state.mapFurniture.map((f: MapFurniture) => {
+                            const render = FURN_ICONS[f.type];
+                            return (
+                                <g key={f.id} transform={`translate(${f.x + f.w / 2},${f.y + f.h / 2}) rotate(${f.rotation}) translate(${-f.w / 2},${-f.h / 2})`}>
+                                    <g transform={`scale(${f.w / 36},${f.h / 28})`}>
+                                        {render ? render(36, 28) : <rect width={36} height={28} fill="#E8DCC8" stroke="#8B7D6B" strokeWidth={1} />}
+                                    </g>
+                                    <text x={f.w / 2} y={f.h + 10} fontSize={8} fill="#7A7567" textAnchor="middle" fontFamily="var(--font-mono)">{f.label}</text>
+                                </g>
+                            );
+                        })}
+                    </g>
+                )}
+
+                {/* -- MapBuilder Rendered Texts -- */}
+                {state.mapTexts && state.mapTexts.length > 0 && (
+                    <g className="map-texts-layer">
+                        {state.mapTexts.map((t: MapText) => (
+                            <g key={t.id} transform={`translate(${t.x},${t.y}) rotate(${t.rotation})`}>
+                                <text x={0} y={0} fontSize={t.fontSize} fill="#1C1A15" textAnchor="middle" dominantBaseline="middle" fontFamily="var(--font-primary)" fontWeight={500}>{t.text}</text>
+                            </g>
+                        ))}
                     </g>
                 )}
 
