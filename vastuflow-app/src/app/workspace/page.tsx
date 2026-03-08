@@ -76,12 +76,42 @@ export default function WorkspacePage() {
         try {
             const svgEl = document.querySelector<SVGSVGElement>(".canvas-area svg");
             if (svgEl) {
-                const svgW = 840, svgH = 800;
-                // Clone so we can force a fixed viewBox for a clean export
+                // Determine bounding box to fit everything (Chakra + Polygon)
+                const chakraRadius = 400 * (state.chakraScale ?? 1.0);
+                const minX = Math.min(0, 420 - chakraRadius);
+                const minY = Math.min(0, 400 - chakraRadius);
+                const maxX = Math.max(840, 420 + chakraRadius);
+                const maxY = Math.max(800, 400 + chakraRadius);
+                const svgW = maxX - minX;
+                const svgH = maxY - minY;
+
+                // Clone for a clean export
                 const clone = svgEl.cloneNode(true) as SVGSVGElement;
-                clone.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
+                clone.setAttribute("viewBox", `${minX} ${minY} ${svgW} ${svgH}`);
                 clone.setAttribute("width", String(svgW));
                 clone.setAttribute("height", String(svgH));
+
+                // Inject CSS variables so colors resolve in the Blob
+                const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+                style.textContent = `
+                    :root {
+                        --base: #FFFEF9;
+                        --surface: #FCFAF5;
+                        --surface-2: #F6F4EE;
+                        --text-primary: #1C1A15;
+                        --text-secondary: #524F45;
+                        --text-tertiary: #8C8775;
+                        --accent-gold: #B8860B;
+                        --accent-gold-light: #D4A017;
+                        --good: #3D7A4F;
+                        --warning: #B87333;
+                        --critical: #A83232;
+                        --border: #E2DFD8;
+                        --font-mono: 'DM Mono', monospace;
+                    }
+                    svg { background: #faf9f6; }
+                `;
+                clone.prepend(style);
 
                 const svgBlob = new Blob(
                     [`<?xml version="1.0" encoding="UTF-8"?>`, clone.outerHTML],
@@ -91,12 +121,11 @@ export default function WorkspacePage() {
                 canvasImageUrl = await new Promise<string>((resolve, reject) => {
                     const img = new window.Image();
                     img.onload = () => {
-                        const scale = 2; // 2× for crisp print quality
+                        const exportScale = 2; // 2× for quality
                         const offscreen = document.createElement("canvas");
-                        offscreen.width = svgW * scale;
-                        offscreen.height = svgH * scale;
+                        offscreen.width = svgW * exportScale;
+                        offscreen.height = svgH * exportScale;
                         const ctx = offscreen.getContext("2d")!;
-                        // White background so transparent SVG areas look clean
                         ctx.fillStyle = "#faf9f6";
                         ctx.fillRect(0, 0, offscreen.width, offscreen.height);
                         ctx.drawImage(img, 0, 0, offscreen.width, offscreen.height);
@@ -127,9 +156,19 @@ export default function WorkspacePage() {
                     roomType: "other" as const,
                     roomLabel: `${z.direction} Zone`,
                     score: z.score,
+                    areaPercent: z.areaPercent, // Added
                     status: z.status,
                     remark: z.remark,
                 })),
+                placedItems: state.placedItems.map(item => ({
+                    id: item.id,
+                    type: item.type,
+                    zone: item.zone,
+                    status: item.status,
+                    reasoning: item.remedy?.reasoning,
+                    fix: item.remedy?.fix,
+                })),
+                sectorOverlaps: state.sectorOverlaps, // Added for the graph
                 deviationCount: state.deviationCount,
                 summary: state.analysisSummary,
             },

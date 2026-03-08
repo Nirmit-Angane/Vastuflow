@@ -7,17 +7,20 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { extractOuterPolygon } from "@/core/geometry/mapToPolygon";
 import "./MapBuilder.css";
 
 // ── Types ────────────────────────────────────────────────────────────────
 export interface MapWall {
     id: string;
+    roomId?: string;
     x1: number; y1: number;
     x2: number; y2: number;
     lengthFt: number;
     lengthIn: number;
     thickness: number;
     type: "standard" | "inner" | "beam";
+    color?: string;
 }
 
 export interface MapFurniture {
@@ -196,6 +199,7 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
     const [texts, setTexts] = useState<MapText[]>([]);
     const [tool, setTool] = useState<"draw" | "select" | "furniture" | "text">("draw");
     const [wallType, setWallType] = useState<"standard" | "inner" | "beam">("standard");
+    const [wallColor] = useState<string>("#6B6560");
     const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
     const [editWall, setEditWall] = useState<string | null>(null);
@@ -207,7 +211,10 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
     const [zoom, setZoom] = useState(1);
     const [sidebarTab, setSidebarTab] = useState<"rooms" | "furniture" | "doors">("rooms");
     const [selectedFurniture, setSelectedFurniture] = useState<string | null>(null);
+    const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
     const [placingFurniture, setPlacingFurniture] = useState<typeof FURNITURE_LIB[0] | null>(null);
+    const [customRoomW, setCustomRoomW] = useState("10");
+    const [customRoomH, setCustomRoomH] = useState("12");
     const [history, setHistory] = useState<MapWall[][]>([[]]);
     const [historyIdx, setHistoryIdx] = useState(0);
     const svgRef = useRef<SVGSVGElement>(null);
@@ -218,6 +225,8 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
     const resizing = useRef<{ id: string; handle: string; startX: number; startY: number; origX: number; origY: number; origW: number; origH: number } | null>(null);
     // Dragging furniture/text state
     const dragging = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number; isText?: boolean } | null>(null);
+    // Dragging grouped rooms state
+    const draggingRoom = useRef<{ roomId: string; startX: number; startY: number; originalWalls: MapWall[] } | null>(null);
     // Rotating furniture/text state
     const rotating = useRef<{ id: string; centerX: number; centerY: number; startAngle: number; origRotation: number; isText?: boolean } | null>(null);
 
@@ -325,13 +334,40 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
             setTexts(prev => [...prev, { id: newId, text: "Text Label", x: snapped.x, y: snapped.y, rotation: 0, fontSize: 16 }]);
             setEditingText(newId);
             setSelectedFurniture(newId);
+            setSelectedRoomId(null);
             setTool("select");
         } else if (tool === "select") {
-            // Clicking empty space deselects
-            setSelectedFurniture(null);
-            setEditingText(null);
+            let clickedRoomId: string | null = null;
+            // distance-to-segment check for all room walls
+            for (const w of walls) {
+                if (!w.roomId) continue;
+                const l2 = (w.x2 - w.x1) ** 2 + (w.y2 - w.y1) ** 2;
+                let t = 0;
+                if (l2 !== 0) {
+                    t = Math.max(0, Math.min(1, ((pt.x - w.x1) * (w.x2 - w.x1) + (pt.y - w.y1) * (w.y2 - w.y1)) / l2));
+                }
+                const projX = w.x1 + t * (w.x2 - w.x1);
+                const projY = w.y1 + t * (w.y2 - w.y1);
+                const dist = Math.sqrt((pt.x - projX) ** 2 + (pt.y - projY) ** 2);
+                if (dist < 10 / zoom) {
+                    clickedRoomId = w.roomId;
+                    break;
+                }
+            }
+
+            if (clickedRoomId) {
+                setSelectedRoomId(clickedRoomId);
+                setSelectedFurniture(null);
+                setEditingText(null);
+                const roomWalls = walls.filter(w => w.roomId === clickedRoomId);
+                draggingRoom.current = { roomId: clickedRoomId, startX: e.clientX, startY: e.clientY, originalWalls: roomWalls };
+            } else {
+                setSelectedRoomId(null);
+                setSelectedFurniture(null);
+                setEditingText(null);
+            }
         }
-    }, [tool, drawStart, walls, wallType, svgPoint, pushHistory, placingFurniture, editWall]);
+    }, [tool, drawStart, walls, wallType, svgPoint, pushHistory, placingFurniture, editWall, zoom]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
         // Rotation dragging
@@ -382,6 +418,25 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
             }
             return;
         }
+        // Room dragging
+        if (draggingRoom.current) {
+            const drag = draggingRoom.current;
+            const dx = (e.clientX - drag.startX) / zoom;
+            const dy = (e.clientY - drag.startY) / zoom;
+            setWalls(prev => prev.map(w => {
+                if (w.roomId !== drag.roomId) return w;
+                const orig = drag.originalWalls.find(ow => ow.id === w.id);
+                if (!orig) return w;
+                return {
+                    ...w,
+                    x1: snap(orig.x1 + dx),
+                    y1: snap(orig.y1 + dy),
+                    x2: snap(orig.x2 + dx),
+                    y2: snap(orig.y2 + dy)
+                };
+            }));
+            return;
+        }
         if (isPanning.current) {
             setPan(prev => ({
                 x: prev.x + e.clientX - lastMouse.current.x,
@@ -397,9 +452,13 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
     const handleMouseUp = useCallback(() => {
         isPanning.current = false;
         resizing.current = null;
+        if (draggingRoom.current) {
+            pushHistory(walls); // Record the room drop
+        }
         dragging.current = null;
         rotating.current = null;
-    }, []);
+        draggingRoom.current = null;
+    }, [walls, pushHistory]);
 
     const handleWheel = useCallback((e: React.WheelEvent) => {
         e.preventDefault();
@@ -425,17 +484,25 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                 setPlacingFurniture(null);
                 setSelectedFurniture(null);
                 setEditingText(null);
+                setSelectedRoomId(null);
             }
             if (e.ctrlKey && e.key === "z") undo();
             if (e.ctrlKey && e.key === "y") redo();
 
-            // Furniture specific keyboard controls
-            if (selectedFurniture) {
-                if (e.key === "Delete" || e.key === "Backspace") {
+            if (e.key === "Delete" || e.key === "Backspace") {
+                if (selectedFurniture) {
                     setFurniture(p => p.filter(f => f.id !== selectedFurniture));
                     setTexts(p => p.filter(t => t.id !== selectedFurniture));
                     setSelectedFurniture(null);
+                } else if (selectedRoomId) {
+                    setWalls(p => p.filter(w => w.roomId !== selectedRoomId));
+                    setSelectedRoomId(null);
+                    pushHistory(walls.filter(w => w.roomId !== selectedRoomId));
                 }
+            }
+
+            // Furniture specific keyboard controls
+            if (selectedFurniture) {
 
                 // Arrow keys for fine-grained alignment
                 if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
@@ -468,7 +535,7 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
         };
         window.addEventListener("keydown", handleKey);
         return () => window.removeEventListener("keydown", handleKey);
-    }, [undo, redo, selectedFurniture]);
+    }, [undo, redo, selectedFurniture, selectedRoomId, walls, pushHistory]);
 
     // ── Apply dimension ──────────────────────────────────────────────────
     const applyDim = useCallback(() => {
@@ -487,20 +554,23 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
     }, [editWall, dimFt, dimIn]);
 
     // ── Place room preset ────────────────────────────────────────────────
-    const placeRoom = useCallback((p: typeof ROOM_PRESETS[0]) => {
+    const placeRoom = useCallback((p: { wFt: number, hFt: number }) => {
         const x = snap((-pan.x / zoom) + 300 / zoom);
         const y = snap((-pan.y / zoom) + 200 / zoom);
         const w = p.wFt * PX_PER_FT, h = p.hFt * PX_PER_FT;
+        const rid = uid();
         const nw: MapWall[] = [
-            { id: uid(), x1: x, y1: y, x2: x + w, y2: y, lengthFt: p.wFt, lengthIn: 0, thickness: WALL_THICKNESS, type: "standard" },
-            { id: uid(), x1: x + w, y1: y, x2: x + w, y2: y + h, lengthFt: p.hFt, lengthIn: 0, thickness: WALL_THICKNESS, type: "standard" },
-            { id: uid(), x1: x + w, y1: y + h, x2: x, y2: y + h, lengthFt: p.wFt, lengthIn: 0, thickness: WALL_THICKNESS, type: "standard" },
-            { id: uid(), x1: x, y1: y + h, x2: x, y2: y, lengthFt: p.hFt, lengthIn: 0, thickness: WALL_THICKNESS, type: "standard" },
+            { id: uid(), roomId: rid, x1: x, y1: y, x2: x + w, y2: y, lengthFt: p.wFt, lengthIn: 0, thickness: WALL_THICKNESS, type: "standard", color: wallColor },
+            { id: uid(), roomId: rid, x1: x + w, y1: y, x2: x + w, y2: y + h, lengthFt: p.hFt, lengthIn: 0, thickness: WALL_THICKNESS, type: "standard", color: wallColor },
+            { id: uid(), roomId: rid, x1: x + w, y1: y + h, x2: x, y2: y + h, lengthFt: p.wFt, lengthIn: 0, thickness: WALL_THICKNESS, type: "standard", color: wallColor },
+            { id: uid(), roomId: rid, x1: x, y1: y + h, x2: x, y2: y, lengthFt: p.hFt, lengthIn: 0, thickness: WALL_THICKNESS, type: "standard", color: wallColor },
         ];
         const all = [...walls, ...nw];
         setWalls(all);
         pushHistory(all);
-    }, [walls, pan, zoom, pushHistory]);
+        setSelectedRoomId(rid);
+        setTool("select");
+    }, [walls, pan, zoom, pushHistory, wallColor]);
 
     // ── Area calculation ─────────────────────────────────────────────────
     const totalArea = useMemo(() => {
@@ -573,12 +643,27 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                 <div className="area-display">
                     {totalArea > 0 && <span>⊞ {totalArea.toFixed(0)} ft²</span>}
                     <span className="toolbar-label">|</span>
-                    <button className="save-btn" onClick={onExit}>✕ Exit</button>
-                    {onAnalyze && walls.length >= 3 && (
-                        <button className="save-btn" onClick={() => onAnalyze(walls.map(w => ({ x: w.x1, y: w.y1 })))}>
-                            Analyze →
+                    <div className="map-toolbar-center">
+                        <span className="map-title">Map Builder</span>
+                    </div>
+
+                    <div className="map-toolbar-right">
+                        {onAnalyze && walls.length >= 3 && (
+                            <button className="save-btn" onClick={() => {
+                                const poly = extractOuterPolygon(walls);
+                                if (poly.length >= 3) {
+                                    onAnalyze(poly);
+                                } else {
+                                    alert("Could not detect a closed outer boundary. Please ensure your standard walls connect to form a closed room.");
+                                }
+                            }}>
+                                Analyze →
+                            </button>
+                        )}
+                        <button className="icon-btn" onClick={onExit} title="Close">
+                            ✕
                         </button>
-                    )}
+                    </div>
                 </div>
             </div>
 
@@ -609,16 +694,31 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                         </div>
 
                         {sidebarTab === "rooms" && (
-                            <div className="map-sidebar-grid">
-                                {ROOM_PRESETS.map(p => (
-                                    <div key={p.label} className="map-sidebar-item" onClick={() => placeRoom(p)}>
-                                        <svg width={36} height={28} viewBox="0 0 36 28">
-                                            <rect x={1} y={1} width={34} height={26} fill="none" stroke="#8B7D6B" strokeWidth={2} rx={1} />
-                                        </svg>
-                                        <span className="item-label">{p.label}</span>
+                            <>
+                                <div className="map-sidebar-grid">
+                                    {ROOM_PRESETS.map(p => (
+                                        <div key={p.label} className="map-sidebar-item" onClick={() => placeRoom(p)}>
+                                            <svg width={36} height={28} viewBox="0 0 36 28">
+                                                <rect x={1} y={1} width={34} height={26} fill="none" stroke="#8B7D6B" strokeWidth={2} rx={1} />
+                                            </svg>
+                                            <span className="item-label">{p.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div style={{ borderTop: "1px dashed #D4C4A8", marginTop: "16px", paddingTop: "16px", paddingLeft: "10px", paddingRight: "10px" }}>
+                                    <h5 style={{ margin: "0 0 10px 0", color: "#8B7D6B", fontSize: "11px", textTransform: "uppercase", letterSpacing: "1px" }}>Custom Room (ft)</h5>
+                                    <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                        <input type="number" min="1" max="100" value={customRoomW} onChange={e => setCustomRoomW(e.target.value)} style={{ width: "100%", padding: "4px", border: "1px solid #C4B498", borderRadius: "4px", background: "#FAF8F5", color: "#3A352D", fontFamily: "var(--font-mono)" }} />
+                                        <span style={{ color: "#8B7D6B", fontSize: "12px" }}>×</span>
+                                        <input type="number" min="1" max="100" value={customRoomH} onChange={e => setCustomRoomH(e.target.value)} style={{ width: "100%", padding: "4px", border: "1px solid #C4B498", borderRadius: "4px", background: "#FAF8F5", color: "#3A352D", fontFamily: "var(--font-mono)" }} />
+                                        <button className="save-btn" style={{ padding: "4px 10px", minWidth: "50px", marginLeft: "4px" }} onClick={() => {
+                                            const w = parseFloat(customRoomW) || 10;
+                                            const h = parseFloat(customRoomH) || 10;
+                                            placeRoom({ wFt: w, hFt: h });
+                                        }}>Add</button>
                                     </div>
-                                ))}
-                            </div>
+                                </div>
+                            </>
                         )}
 
                         {sidebarTab === "furniture" && (
@@ -678,6 +778,9 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                             {/* Walls */}
                             {walls.map(w => (
                                 <g key={w.id}>
+                                    {w.roomId && selectedRoomId === w.roomId && (
+                                        <line x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2} stroke="#B8860B" strokeWidth={16 / zoom} opacity={0.3} strokeLinecap="round" />
+                                    )}
                                     <line x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
                                         stroke={w.type === "inner" ? "#6B6560" : "#1C1A15"}
                                         strokeWidth={(w.type === "beam" ? 3 : w.thickness) / zoom}

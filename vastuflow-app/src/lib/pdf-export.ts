@@ -1,9 +1,5 @@
-// ═══════════════════════════════════════════════════════
-// L3 — PDF Report Generator (Deterministic)
-// Pure data → PDF. No UI, no side effects.
-// ═══════════════════════════════════════════════════════
-
 import jsPDF from "jspdf";
+import { VastuDirection, SectorOverlap } from "@/core/geometry/types";
 
 export interface ReportFloorPlan {
     name: string;
@@ -15,17 +11,30 @@ export interface ReportFloorPlan {
 }
 
 export interface ReportEvaluation {
-    direction: string;
+    direction: VastuDirection;
     roomType: string;
     roomLabel: string;
     score: number;
+    areaPercent: number; // Added for the table
     status: "good" | "moderate" | "critical";
     remark: string;
+}
+
+export interface ReportPlacedItem {
+    id: string;
+    type: string;
+    zone: string;
+    devta?: string;
+    status: "best" | "good" | "bad" | "worst";
+    reasoning?: string;
+    fix?: string;
 }
 
 export interface ReportAnalysis {
     overallScore: number;
     evaluations: ReportEvaluation[];
+    placedItems: ReportPlacedItem[]; // Added for placement status
+    sectorOverlaps: SectorOverlap[]; // Added for the graph
     deviationCount: number;
     summary: string;
 }
@@ -34,7 +43,7 @@ export interface ReportData {
     floorPlan: ReportFloorPlan;
     analysis: ReportAnalysis;
     generatedAt: string;
-    canvasImageUrl?: string | null;  // SVG canvas snapshot (PNG data URL)
+    canvasImageUrl?: string | null;
 }
 
 export function generateReport(data: ReportData): void {
@@ -88,38 +97,35 @@ export function generateReport(data: ReportData): void {
     doc.setFontSize(9);
     doc.setTextColor(28, 26, 21);
     doc.setFont("helvetica", "italic");
-    const lines = doc.splitTextToSize(analysis.summary, W - 40);
-    doc.text(lines, 20, y);
-    y += lines.length * 5 + 8;
+    const summaryLines = doc.splitTextToSize(analysis.summary, W - 40);
+    doc.text(summaryLines, 20, y);
+    y += summaryLines.length * 5 + 10;
 
     // ── Canvas Map (floor plan + Shakti Chakra) ──
     if (canvasImageUrl) {
-        // Section header
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11);
         doc.setTextColor(28, 26, 21);
         doc.text("Floor Plan Layout & Vastu Zone Map", 20, y);
         y += 6;
 
-        const mapW = W - 40;   // 170 mm wide
-        const mapH = Math.round(mapW * (800 / 840)); // keep ~840×800 ratio
+        const mapW = W - 40;
+        const mapH = Math.round(mapW * (800 / 840));
 
-        // If the map won't fit on the current page, start a new one
-        if (y + mapH + 8 > 277) { doc.addPage(); y = 20; }
+        if (y + mapH > 270) { doc.addPage(); y = 20; }
 
-        // Light border behind the image
         doc.setDrawColor(226, 223, 216);
         doc.setLineWidth(0.4);
         doc.rect(20, y, mapW, mapH);
         doc.addImage(canvasImageUrl, "PNG", 20, y, mapW, mapH);
-        y += mapH + 10;
+        y += mapH + 15;
     }
 
-    // ── Zone Analysis Table ──
+    // ── Geometric Balance Analysis Table ──
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(28, 26, 21);
-    doc.text("Zone Analysis", 20, y);
+    doc.text("Geometric Balance Analysis", 20, y);
     y += 8;
 
     doc.setFillColor(238, 236, 234);
@@ -128,32 +134,131 @@ export function generateReport(data: ReportData): void {
     doc.setFont("helvetica", "bold");
     doc.setTextColor(122, 117, 103);
     doc.text("DIR", 24, y + 5);
-    doc.text("AREA %", 48, y + 5);
-    doc.text("SCORE", 100, y + 5);
-    doc.text("STATUS", 130, y + 5);
+    doc.text("AREA %", 50, y + 5);
+    doc.text("SCORE", 110, y + 5);
+    doc.text("STATUS", 150, y + 5);
     y += 9;
 
     doc.setFont("helvetica", "normal");
     analysis.evaluations.forEach((ev) => {
-        if (y > 270) { doc.addPage(); y = 20; }
+        if (y > 275) { doc.addPage(); y = 20; }
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(28, 26, 21);
         doc.text(ev.direction, 24, y + 4);
+
         doc.setFont("helvetica", "normal");
         doc.setTextColor(122, 117, 103);
-        doc.text(ev.roomLabel, 48, y + 4);
+        doc.text(`${ev.areaPercent.toFixed(1)}%`, 50, y + 4);
+
+        doc.text(ev.score.toFixed(1), 110, y + 4);
+
         if (ev.status === "good") doc.setTextColor(61, 122, 79);
         else if (ev.status === "moderate") doc.setTextColor(184, 115, 51);
         else doc.setTextColor(168, 50, 50);
-        doc.text(ev.score.toFixed(1), 100, y + 4);
-        const statusLabel = ev.status === "good" ? "Good" : ev.status === "moderate" ? "Moderate" : "Critical";
-        doc.text(statusLabel, 130, y + 4);
+
+        const statusLabel = ev.status.toUpperCase();
+        doc.text(statusLabel, 150, y + 4);
+
         y += 7;
         doc.setDrawColor(226, 223, 216);
         doc.line(20, y, W - 20, y);
         y += 1;
     });
+    y += 10;
+
+    // ── Visual Graph Section (Image 4) ──
+    if (y + 60 > 280) { doc.addPage(); y = 20; }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(28, 26, 21);
+    doc.text("Spatial Distribution Visualization", 20, y);
+    y += 10;
+
+    const graphX = 30;
+    const graphY = y + 40;
+    const graphW = 150;
+    const graphH = 40;
+
+    // Draw Axis
+    doc.setDrawColor(200, 200, 200);
+    doc.line(graphX, graphY, graphX + graphW, graphY); // X axis
+    doc.line(graphX, graphY, graphX, graphY - graphH); // Y axis
+
+    // Draw Bars
+    const barW = graphW / analysis.sectorOverlaps.length - 2;
+    let maxArea = Math.max(...analysis.sectorOverlaps.map(s => s.percentOfTotal));
+    if (maxArea < 10) maxArea = 10; // min scale
+
+    analysis.sectorOverlaps.forEach((ov, i) => {
+        const h = (ov.percentOfTotal / maxArea) * graphH;
+        const bx = graphX + i * (barW + 2) + 1;
+        const by = graphY - h;
+
+        // Use directional colors simplified if possible or just standard
+        doc.setFillColor(74, 144, 217); // Blue default
+        doc.rect(bx, by, barW, h, "F");
+
+        doc.setFontSize(5);
+        doc.setTextColor(100, 100, 100);
+        doc.text(ov.direction, bx + barW / 2, graphY + 3, { angle: 45 });
+    });
+    y += 60;
+
+    // ── Vastu Placement Status (Image 2) ──
+    if (analysis.placedItems.length > 0) {
+        if (y + 40 > 270) { doc.addPage(); y = 20; }
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(28, 26, 21);
+        doc.text("Vastu Placement Status", 20, y);
+        y += 8;
+
+        analysis.placedItems.forEach((item) => {
+            const rowH = (item.reasoning || item.fix) ? 35 : 12;
+            if (y + rowH > 280) { doc.addPage(); y = 20; }
+
+            doc.setFillColor(250, 249, 246);
+            doc.roundedRect(20, y, W - 40, rowH - 2, 2, 2, "F");
+
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(28, 26, 21);
+            doc.text(item.type, 25, y + 6);
+
+            const statusColor = (item.status === "best" || item.status === "good") ? [61, 122, 79] : [168, 50, 50];
+            doc.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
+            doc.setFontSize(8);
+            doc.text(`${item.zone} · ${item.status.toUpperCase()}`, 150, y + 6);
+
+            if (item.reasoning) {
+                doc.setFontSize(7);
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(184, 134, 11);
+                doc.text("REASONING:", 25, y + 12);
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(80, 75, 65);
+                const lines = doc.splitTextToSize(item.reasoning, W - 60);
+                doc.text(lines, 25, y + 16);
+            }
+
+            if (item.fix) {
+                const fixY = y + 24;
+                doc.setFontSize(7);
+                doc.setFont("helvetica", "bold");
+                doc.setTextColor(61, 122, 79);
+                doc.text("FIX / REMEDY:", 25, fixY);
+                doc.setFont("helvetica", "normal");
+                doc.setTextColor(80, 75, 65);
+                const lines = doc.splitTextToSize(item.fix, W - 60);
+                doc.text(lines, 25, fixY + 4);
+            }
+
+            y += rowH;
+        });
+    }
 
     // ── Footer ──
     const pageCount = doc.getNumberOfPages();
