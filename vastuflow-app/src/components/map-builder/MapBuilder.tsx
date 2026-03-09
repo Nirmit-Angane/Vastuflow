@@ -457,7 +457,7 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                 setEditingText(null);
             }
         }
-    }, [tool, drawStart, walls, wallType, svgPoint, pushHistory, placingFurniture, editWall, zoom]);
+    }, [tool, drawStart, walls, wallType, svgPoint, pushHistory, placingFurniture, editWall, zoom, furniture]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
         // Rotation dragging

@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { ProjectState, ProjectAction } from "@/state/project-state";
 import { Phase, isPhaseAtLeast } from "@/state/phase";
 import { DIRECTION_COLORS, Point } from "@/core/geometry/types";
-import { MapFurniture, MapText } from "@/components/map-builder/MapBuilder";
+import { MapFurniture, MapText, MapWall } from "@/components/map-builder/MapBuilder";
 import ShaktiChakra from "./ShaktiChakra";
 
 const FURN_ICONS: Record<string, (w: number, h: number) => React.ReactNode> = {
