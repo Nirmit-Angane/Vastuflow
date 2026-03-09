@@ -12,7 +12,7 @@ import { getDirectionForPoint, computeCoveringRadius } from "@/core/geometry/sec
 import { computeSectorOverlaps, computeZoneScores, computeOverallScore } from "@/core/geometry/overlap";
 import { compute32Devtas, getDevtaForPoint } from "@/core/geometry/devtas";
 import { VastuItem, PlacementStatus, VASTU_PLACEMENT_RULES, DEVTA_PLACEMENT_OVERRIDES } from "@/core/geometry/vastu-rules";
-import { MapFurniture, MapText } from "@/components/map-builder/MapBuilder";
+import { MapFurniture, MapText, MapWall } from "@/components/map-builder/MapBuilder";
 
 export interface PlacedItem {
     id: string;
@@ -82,6 +82,7 @@ export interface ProjectState {
     activePlacement: VastuItem | null;
     activeTab: "overlay" | "items";
     // Map Builder data
+    mapWalls: MapWall[];
     mapFurniture: MapFurniture[];
     mapTexts: MapText[];
 }
@@ -133,6 +134,7 @@ export function createEmptyProject(): ProjectState {
         placedItems: [],
         activePlacement: null,
         activeTab: "overlay",
+        mapWalls: [],
         mapFurniture: [],
         mapTexts: [],
     };
@@ -173,7 +175,7 @@ export type ProjectAction =
     | { type: "FETCH_REMEDY_SUCCESS"; id: string; reasoning: string; fix: string }
     | { type: "FETCH_REMEDY_ERROR"; id: string; error: string }
     | { type: "SET_ACTIVE_TAB"; tab: "overlay" | "items" }
-    | { type: "SKIP_TO_TRACE"; furniture?: MapFurniture[]; texts?: MapText[] }
+    | { type: "SKIP_TO_TRACE"; walls?: MapWall[]; furniture?: MapFurniture[]; texts?: MapText[] }
     | { type: "RESET" };
 
 // ── Reducer ──
@@ -196,6 +198,9 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
             return {
                 ...createEmptyProject(),
                 phase: Phase.TRACING,
+                mapWalls: action.walls || [],
+                mapFurniture: action.furniture || [],
+                mapTexts: action.texts || [],
             };
         }
 

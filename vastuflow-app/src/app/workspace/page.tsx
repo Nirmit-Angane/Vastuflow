@@ -8,7 +8,7 @@ import StepBar from "@/components/StepBar";
 import ToolPanel from "@/components/ToolPanel";
 import CanvasArea from "@/components/CanvasArea";
 import AnalysisPanel from "@/components/AnalysisPanel";
-import MapBuilder from "@/components/map-builder/MapBuilder";
+import MapBuilder, { MapFurniture, MapText, MapWall } from "@/components/map-builder/MapBuilder";
 import "./workspace.css";
 
 type WorkspaceMode = "select" | "analysis" | "map-builder";
@@ -208,11 +208,76 @@ export default function WorkspacePage() {
     }, [state]);
 
     // ── Map Builder → Analysis bridge ──
-    const handleMapAnalyze = useCallback((polygon: { x: number; y: number }[]) => {
-        // Feed the polygon from map builder into the analysis pipeline
-        polygon.forEach((pt, i) => {
+    const handleMapAnalyze = useCallback((
+        polygon: { x: number; y: number }[],
+        walls: MapWall[],
+        furniture: MapFurniture[],
+        texts: MapText[]
+    ) => {
+        if (polygon.length < 3) return;
+
+        // Normalize polygon from MapBuilder's raw SVG pixel coords
+        // into CanvasArea's 840×800 viewBox coordinate space.
+        const CANVAS_W = 840;
+        const CANVAS_H = 800;
+        const PADDING = 60; // padding on each side
+
+        const xs = polygon.map(p => p.x);
+        const ys = polygon.map(p => p.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        const polyW = maxX - minX || 1;
+        const polyH = maxY - minY || 1;
+
+        const availW = CANVAS_W - PADDING * 2;
+        const availH = CANVAS_H - PADDING * 2;
+
+        // Scale uniformly to fit, preserving aspect ratio
+        const scale = Math.min(availW / polyW, availH / polyH);
+
+        const scaledW = polyW * scale;
+        const scaledH = polyH * scale;
+        const offsetX = PADDING + (availW - scaledW) / 2;
+        const offsetY = PADDING + (availH - scaledH) / 2;
+
+        const transformX = (x: number) => (x - minX) * scale + offsetX;
+        const transformY = (y: number) => (y - minY) * scale + offsetY;
+
+        const normalized = polygon.map(p => ({
+            x: transformX(p.x),
+            y: transformY(p.y),
+        }));
+
+        const normWalls = walls.map(w => ({
+            ...w,
+            x1: transformX(w.x1),
+            y1: transformY(w.y1),
+            x2: transformX(w.x2),
+            y2: transformY(w.y2),
+            thickness: w.thickness * scale
+        }));
+
+        const normFurn = furniture.map(f => ({
+            ...f,
+            x: transformX(f.x),
+            y: transformY(f.y),
+            w: f.w * scale,
+            h: f.h * scale
+        }));
+
+        const normTexts = texts.map(t => ({
+            ...t,
+            x: transformX(t.x),
+            y: transformY(t.y),
+            fontSize: t.fontSize * scale
+        }));
+
+        // Feed normalized polygon and map data into the analysis pipeline
+        normalized.forEach((pt, i) => {
             if (i === 0) {
-                dispatch({ type: "SKIP_TO_TRACE" });
+                dispatch({ type: "SKIP_TO_TRACE", walls: normWalls, furniture: normFurn, texts: normTexts });
             }
             dispatch({ type: "ADD_VERTEX", point: pt });
         });

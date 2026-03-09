@@ -9,26 +9,26 @@ export interface MapWallPayload {
 
 interface Point { x: number; y: number }
 
-// Utility to check if two points are exactly identical within a tiny tolerance
-function isSame(p1: Point, p2: Point) {
-    return Math.abs(p1.x - p2.x) < 0.1 && Math.abs(p1.y - p2.y) < 0.1;
+const SNAP_TOLERANCE = 3; // pixels — tolerance for merging near-identical points
+
+// Round a value to the nearest tolerance bucket to merge near-identical values
+function snapVal(v: number): number {
+    return Math.round(v / SNAP_TOLERANCE) * SNAP_TOLERANCE;
 }
 
-// Line intersection
-function getIntersection(A: Point, B: Point, C: Point, D: Point): Point | null {
-    const denom = (D.y - C.y) * (B.x - A.x) - (D.x - C.x) * (B.y - A.y);
-    if (Math.abs(denom) < 1e-6) return null;
+function ptKey(p: Point): string {
+    return `${snapVal(p.x)},${snapVal(p.y)}`;
+}
 
-    const ua = ((D.x - C.x) * (A.y - C.y) - (D.y - C.y) * (A.x - C.x)) / denom;
-    const ub = ((B.x - A.x) * (A.y - C.y) - (B.y - A.y) * (A.x - C.x)) / denom;
+function isSame(a: Point, b: Point): boolean {
+    return Math.abs(a.x - b.x) < SNAP_TOLERANCE && Math.abs(a.y - b.y) < SNAP_TOLERANCE;
+}
 
-    if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
-        return {
-            x: A.x + ua * (B.x - A.x),
-            y: A.y + ua * (B.y - A.y)
-        };
-    }
-    return null;
+// Returns true if two segments share both endpoints (in either direction)
+function edgeKey(p1: Point, p2: Point): string {
+    const k1 = ptKey(p1);
+    const k2 = ptKey(p2);
+    return k1 < k2 ? `${k1}|${k2}` : `${k2}|${k1}`;
 }
 
 export function extractOuterPolygon(walls: MapWallPayload[]): Point[] {
@@ -36,119 +36,113 @@ export function extractOuterPolygon(walls: MapWallPayload[]): Point[] {
     const stdWalls = walls.filter(w => w.type === "standard");
     if (stdWalls.length < 3) return [];
 
-    // 2. Extract segments
-    const segments: { p1: Point; p2: Point }[] = stdWalls.map(w => ({
-        p1: { x: w.x1, y: w.y1 },
-        p2: { x: w.x2, y: w.y2 }
-    }));
+    // 2. Snap all endpoints to a grid to merge near-identical vertices
+    type Seg = { p1: Point; p2: Point };
+    const segments: Seg[] = stdWalls.map(w => ({
+        p1: { x: snapVal(w.x1), y: snapVal(w.y1) },
+        p2: { x: snapVal(w.x2), y: snapVal(w.y2) }
+    })).filter(s => !isSame(s.p1, s.p2));
 
-    // 3. Split segments at all intersections
-    const splitSegments: typeof segments = [];
+    // 3. Count edge usage — interior walls shared by two rooms should be used twice
+    //    Exterior (outer boundary) edges will be used exactly once
+    const edgeCount = new Map<string, { segs: Seg[] }>();
     for (const seg of segments) {
-        const intersectionPoints: Point[] = [seg.p1, seg.p2];
-        for (const other of segments) {
-            if (seg === other) continue;
-            const pt = getIntersection(seg.p1, seg.p2, other.p1, other.p2);
-            if (pt) {
-                // Ignore endpoints
-                if (!isSame(pt, seg.p1) && !isSame(pt, seg.p2)) {
-                    intersectionPoints.push(pt);
-                }
-            }
+        const key = edgeKey(seg.p1, seg.p2);
+        if (!edgeCount.has(key)) edgeCount.set(key, { segs: [] });
+        edgeCount.get(key)!.segs.push(seg);
+    }
+
+    // 4. Keep only edges that appear exactly ONCE (outer boundary)
+    const outerEdges: Seg[] = [];
+    for (const { segs } of edgeCount.values()) {
+        if (segs.length === 1) {
+            outerEdges.push(segs[0]);
         }
+        // edges with count > 1 are interior shared walls — discard
+    }
 
-        // Sort intersection points along the segment
-        intersectionPoints.sort((a, b) => {
-            const da = Math.hypot(a.x - seg.p1.x, a.y - seg.p1.y);
-            const db = Math.hypot(b.x - seg.p1.x, b.y - seg.p1.y);
-            return da - db;
-        });
-
-        // Deduplicate
-        const uniquePts = [intersectionPoints[0]];
-        for (let i = 1; i < intersectionPoints.length; i++) {
-            if (!isSame(intersectionPoints[i], intersectionPoints[i - 1])) {
-                uniquePts.push(intersectionPoints[i]);
-            }
-        }
-
-        // Add split pieces
-        for (let i = 0; i < uniquePts.length - 1; i++) {
-            if (!isSame(uniquePts[i], uniquePts[i + 1])) {
-                splitSegments.push({ p1: uniquePts[i], p2: uniquePts[i + 1] });
-            }
+    if (outerEdges.length < 3) {
+        // Fallback: maybe all edges are unique (no room sharing). Use all segments.
+        for (const seg of segments) {
+            outerEdges.push(seg);
         }
     }
 
-    // 4. Build Adjacency Graph
+    // 5. Build adjacency graph from outer edges
     const graph = new Map<string, Point[]>();
-    const ptKey = (p: Point) => `${Math.round(p.x)},${Math.round(p.y)}`;
-
-    // Store original points to avoid precision loss issues when referencing
     const pointMap = new Map<string, Point>();
 
-    for (const seg of splitSegments) {
+    for (const seg of outerEdges) {
         const k1 = ptKey(seg.p1);
         const k2 = ptKey(seg.p2);
 
-        if (!pointMap.has(k1)) pointMap.set(k1, seg.p1);
-        if (!pointMap.has(k2)) pointMap.set(k2, seg.p2);
+        if (!pointMap.has(k1)) pointMap.set(k1, { x: snapVal(seg.p1.x), y: snapVal(seg.p1.y) });
+        if (!pointMap.has(k2)) pointMap.set(k2, { x: snapVal(seg.p2.x), y: snapVal(seg.p2.y) });
 
         if (!graph.has(k1)) graph.set(k1, []);
         if (!graph.has(k2)) graph.set(k2, []);
 
-        if (!graph.get(k1)!.some(p => isSame(p, seg.p2))) graph.get(k1)!.push(seg.p2);
-        if (!graph.get(k2)!.some(p => isSame(p, seg.p1))) graph.get(k2)!.push(seg.p1);
+        const p1Ref = pointMap.get(k1)!;
+        const p2Ref = pointMap.get(k2)!;
+
+        if (!graph.get(k1)!.some(p => isSame(p, p2Ref))) graph.get(k1)!.push(p2Ref);
+        if (!graph.get(k2)!.some(p => isSame(p, p1Ref))) graph.get(k2)!.push(p1Ref);
     }
 
     if (graph.size === 0) return [];
 
-    // 5. Find Leftmost Node (Start Node)
+    // 6. Find leftmost-then-topmost node as start (guaranteed to be on outer boundary)
     let startKey = "";
     let minX = Infinity;
     let minY = Infinity;
 
     for (const [key, pt] of pointMap.entries()) {
-        if (pt.x < minX || (Math.abs(pt.x - minX) < 1e-3 && pt.y < minY)) {
+        if (pt.x < minX || (Math.abs(pt.x - minX) < SNAP_TOLERANCE && pt.y < minY)) {
             minX = pt.x;
             minY = pt.y;
             startKey = key;
         }
     }
 
-    // 6. Trace Outer Boundary (Right-Hand Rule)
+    if (!startKey) return [];
+
+    // 7. Trace outer boundary using rightmost-turn (smallest left turn = rightmost path)
     const polygon: Point[] = [];
     let currentKey = startKey;
-    // We imagine we came from straight UP so our first edge goes right/down
+    // Start direction: coming from above (straight up) → initial angle = -90° = -π/2
     let incomingAngle = -Math.PI / 2;
 
-    // Safety limit to prevent infinite loops
-    let maxSteps = graph.size * 2;
+    const maxSteps = graph.size * 3 + 10;
+    let steps = 0;
 
     do {
-        polygon.push(pointMap.get(currentKey)!);
+        const current = pointMap.get(currentKey)!;
+        polygon.push(current);
+
         const neighbors = graph.get(currentKey) || [];
+        if (neighbors.length === 0) break;
 
-        if (neighbors.length === 0) break; // Dead end
+        // Filter out going back to our last position
+        const lastPt = polygon.length >= 2 ? polygon[polygon.length - 2] : null;
+        const candidates = neighbors.filter(n => !lastPt || !isSame(n, lastPt));
+        const pool = candidates.length > 0 ? candidates : neighbors;
 
-        let bestNeighbor = neighbors[0];
-        let bestTurn = Infinity; // We want the smallest turn angle (sharpest right)
+        // Pick the neighbor that turns most to the right (smallest clockwise angle)
+        let bestNeighbor = pool[0];
+        let bestTurn = Infinity;
 
-        for (const n of neighbors) {
-            const pCurrent = pointMap.get(currentKey)!;
-            const dx = n.x - pCurrent.x;
-            const dy = n.y - pCurrent.y;
+        for (const n of pool) {
+            const dx = n.x - current.x;
+            const dy = n.y - current.y;
             const outAngle = Math.atan2(dy, dx);
 
-            // Calculate turning angle. We want to turn RIGHT.
-            // Right turns mean the difference is positive if we normalize correctly.
-            let turn = incomingAngle - outAngle;
-
-            // Normalize to [0, 2PI)
+            // Turn angle: how much we turn left from incoming direction
+            // We want the MINIMUM left turn (= rightmost path = outer boundary)
+            let turn = outAngle - (incomingAngle - Math.PI);
+            // Normalize to [0, 2π)
             while (turn < 0) turn += 2 * Math.PI;
             while (turn >= 2 * Math.PI) turn -= 2 * Math.PI;
 
-            // If we bounce straight back (PI turn), that's a dead end. We only pick it if no other choice.
             if (turn < bestTurn) {
                 bestTurn = turn;
                 bestNeighbor = n;
@@ -156,30 +150,25 @@ export function extractOuterPolygon(walls: MapWallPayload[]): Point[] {
         }
 
         const nextKey = ptKey(bestNeighbor);
-
-        // Update incoming angle for the next node (it's the opposite of our outgoing angle)
-        const pCurrent = pointMap.get(currentKey)!;
-        incomingAngle = Math.atan2(bestNeighbor.y - pCurrent.y, bestNeighbor.x - pCurrent.x) + Math.PI;
-
+        incomingAngle = Math.atan2(bestNeighbor.y - current.y, bestNeighbor.x - current.x);
         currentKey = nextKey;
-        maxSteps--;
+        steps++;
+    } while (currentKey !== startKey && steps < maxSteps);
 
-    } while (currentKey !== startKey && maxSteps > 0);
+    if (polygon.length < 3) return [];
 
-    // Optional: Filter out co-linear points to simplify the polygon
-    const optimizedPolygon: Point[] = [];
+    // 8. Remove collinear points (points that are on a straight line between neighbors)
+    const simplified: Point[] = [];
     for (let i = 0; i < polygon.length; i++) {
         const prev = polygon[(i - 1 + polygon.length) % polygon.length];
         const curr = polygon[i];
         const next = polygon[(i + 1) % polygon.length];
 
-        // Cross product to check colinearity
         const cross = (curr.x - prev.x) * (next.y - curr.y) - (curr.y - prev.y) * (next.x - curr.x);
-        if (Math.abs(cross) > 1e-3) {
-            // Not colinear, keep it
-            optimizedPolygon.push(curr);
+        if (Math.abs(cross) > 0.1) {
+            simplified.push(curr);
         }
     }
 
-    return optimizedPolygon.length >= 3 ? optimizedPolygon : polygon;
+    return simplified.length >= 3 ? simplified : polygon;
 }

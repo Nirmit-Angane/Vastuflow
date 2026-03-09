@@ -8,6 +8,8 @@
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { extractOuterPolygon } from "@/core/geometry/mapToPolygon";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import "./MapBuilder.css";
 
 // ── Types ────────────────────────────────────────────────────────────────
@@ -23,28 +25,15 @@ export interface MapWall {
     color?: string;
 }
 
-export interface MapFurniture {
-    id: string;
-    type: string;
-    label: string;
-    x: number; y: number;
-    w: number; h: number;
-    rotation: number;
-}
+export type MapFurniture = { id: string; type: string; label: string; x: number; y: number; w: number; h: number; rotation: number; };
+export type MapText = { id: string; text: string; x: number; y: number; rotation: number; fontSize: number; };
 
-export interface MapText {
-    id: string;
-    text: string;
-    x: number;
-    y: number;
-    rotation: number;
-    fontSize: number;
-}
+type Point = { x: number; y: number };
 
-interface MapBuilderProps {
+type MapBuilderProps = {
     onExit: () => void;
-    onAnalyze?: (polygon: { x: number; y: number }[]) => void;
-}
+    onAnalyze?: (polygon: Point[], walls: MapWall[], furniture: MapFurniture[], texts: MapText[]) => void;
+};
 
 // ── Constants ────────────────────────────────────────────────────────────
 const PX_PER_FT = 40;
@@ -147,9 +136,9 @@ const FURN_ICONS: Record<string, (w: number, h: number) => React.ReactNode> = {
         <line x1={w * 0.85} y1={h} x2={w * 0.5} y2={h} stroke="#8B7D6B" strokeDasharray="2 2" />
     </>),
     window: (w, h) => (<>
-        <rect x={0} y={0} width={w} height={h} rx={1} fill="#FFF" stroke="#8B7D6B" strokeWidth={1} />
-        <line x1={w * 0.5} y1={0} x2={w * 0.5} y2={h} stroke="#8B7D6B" strokeWidth={1} />
-        <line x1={0} y1={h * 0.5} x2={w} y2={h * 0.5} stroke="#8B7D6B" strokeWidth={0.5} />
+        <rect x={0} y={0} width={w} height={h} fill="#FFF" stroke="#1C1A15" strokeWidth={1.5} />
+        <rect x={0} y={h * 0.3} width={w} height={h * 0.4} fill="#F8F8F8" stroke="#1C1A15" strokeWidth={1} />
+        <line x1={0} y1={h * 0.5} x2={w} y2={h * 0.5} stroke="#1C1A15" strokeWidth={0.5} />
     </>),
 };
 
@@ -199,6 +188,8 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
     const [texts, setTexts] = useState<MapText[]>([]);
     const [tool, setTool] = useState<"draw" | "select" | "furniture" | "text">("draw");
     const [wallType, setWallType] = useState<"standard" | "inner" | "beam">("standard");
+    const [innerWallColor, setInnerWallColor] = useState<string>("#6B6560");
+    const [beamColor, setBeamColor] = useState<string>("#8B7D6B");
     const [wallColor] = useState<string>("#6B6560");
     const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -236,6 +227,43 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
         setHistoryIdx(prev => prev + 1);
     }, [historyIdx]);
 
+    const exportMapAsPDF = useCallback(async () => {
+        if (!wrapperRef.current) return;
+        try {
+            // Temporarily hide UI overlays if needed, or just capture
+            const canvas = await html2canvas(wrapperRef.current, { scale: 2, useCORS: true });
+            const imgData = canvas.toDataURL("image/png");
+
+            // Calculate a good PDF size (A4 Landscape)
+            const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+            const pdfW = pdf.internal.pageSize.getWidth();
+            const pdfH = pdf.internal.pageSize.getHeight();
+
+            const imgProps = pdf.getImageProperties(imgData);
+            const ratio = imgProps.width / imgProps.height;
+            let finalW = pdfW - 20;
+            let finalH = finalW / ratio;
+
+            if (finalH > pdfH - 30) {
+                finalH = pdfH - 30;
+                finalW = finalH * ratio;
+            }
+
+            const x = (pdfW - finalW) / 2;
+
+            pdf.setFont("helvetica", "bold");
+            pdf.setFontSize(16);
+            pdf.setTextColor(28, 26, 21);
+            pdf.text("VastuFlow Floor Plan", 10, 15);
+
+            pdf.addImage(imgData, "PNG", x, 25, finalW, finalH);
+            pdf.save("VastuFlow_FloorPlan.pdf");
+        } catch (error) {
+            console.error("PDF Export Error:", error);
+            alert("Failed to generate PDF. Please try again.");
+        }
+    }, []);
+
     const undo = useCallback(() => {
         if (historyIdx > 0) { setHistoryIdx(historyIdx - 1); setWalls(history[historyIdx - 1]); }
     }, [historyIdx, history]);
@@ -244,13 +272,27 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
         if (historyIdx < history.length - 1) { setHistoryIdx(historyIdx + 1); setWalls(history[historyIdx + 1]); }
     }, [historyIdx, history]);
 
-    // ── SVG coordinate conversion ────────────────────────────────────────
-    const svgPoint = useCallback((cx: number, cy: number) => {
+    // ── SVG coordinate conversion with Smart Snapping ──────────────────
+    const svgPoint = useCallback((cx: number, cy: number, skipSnap = false) => {
         const svg = svgRef.current;
         if (!svg) return { x: 0, y: 0 };
         const r = svg.getBoundingClientRect();
-        return { x: (cx - r.left - pan.x) / zoom, y: (cy - r.top - pan.y) / zoom };
-    }, [pan, zoom]);
+        const pt = { x: (cx - r.left - pan.x) / zoom, y: (cy - r.top - pan.y) / zoom };
+
+        if (skipSnap) return pt;
+
+        // 1. Check for nearby wall endpoints (Highest Priority)
+        const SNAP_DIST = 15 / zoom;
+        for (const w of walls) {
+            const d1 = Math.sqrt((pt.x - w.x1) ** 2 + (pt.y - w.y1) ** 2);
+            if (d1 < SNAP_DIST) return { x: w.x1, y: w.y1 };
+            const d2 = Math.sqrt((pt.x - w.x2) ** 2 + (pt.y - w.y2) ** 2);
+            if (d2 < SNAP_DIST) return { x: w.x2, y: w.y2 };
+        }
+
+        // 2. Free pointer placement (high precision, no snapping to grid)
+        return pt;
+    }, [pan, zoom, walls]);
 
     // ── Start resize on a furniture handle ─────────────────────────────
     const startResize = useCallback((e: React.MouseEvent, fId: string, handle: string) => {
@@ -297,10 +339,25 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
         if (editWall) return;
         // Don't draw if resize/drag is active
         if (resizing.current || dragging.current) return;
-        const pt = svgPoint(e.clientX, e.clientY);
-        const snapped = { x: snap(pt.x), y: snap(pt.y) };
+        const pt = svgPoint(e.clientX, e.clientY, true); // Raw point for high precision selection/logic
+        let snapped = svgPoint(e.clientX, e.clientY); // Snapped point for drawing
 
         if (tool === "draw") {
+            if (drawStart) {
+                const dx = Math.abs(snapped.x - drawStart.x);
+                const dy = Math.abs(snapped.y - drawStart.y);
+                const TOLERANCE = 5 / zoom;
+
+                if (e.shiftKey) {
+                    // Hard Ortho
+                    if (dx > dy) snapped = { x: snapped.x, y: drawStart.y };
+                    else snapped = { x: drawStart.x, y: snapped.y };
+                } else if (dx < TOLERANCE) {
+                    snapped = { x: drawStart.x, y: snapped.y };
+                } else if (dy < TOLERANCE) {
+                    snapped = { x: snapped.x, y: drawStart.y };
+                }
+            }
             if (!drawStart) {
                 setDrawStart(snapped);
             } else {
@@ -337,8 +394,41 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
             setSelectedRoomId(null);
             setTool("select");
         } else if (tool === "select") {
+            // ── Check furniture/doors/windows first (by bounding-box hit test) ──
+            // We must account for item rotation by transforming the click point
+            let clickedFurnitureId: string | null = null;
+            for (const f of [...furniture].reverse()) {  // reverse so front items get priority
+                // Transform click point into the item's local (un-rotated) space
+                const cx = f.x + f.w / 2;
+                const cy = f.y + f.h / 2;
+                const rad = (f.rotation * Math.PI) / 180;
+                const cos = Math.cos(-rad);
+                const sin = Math.sin(-rad);
+                const lx = cos * (pt.x - cx) - sin * (pt.y - cy) + f.w / 2;
+                const ly = sin * (pt.x - cx) + cos * (pt.y - cy) + f.h / 2;
+                // Add a small padding so clicking near the edge also works
+                const PAD = 4 / zoom;
+                if (lx >= -PAD && lx <= f.w + PAD && ly >= -PAD && ly <= f.h + PAD) {
+                    clickedFurnitureId = f.id;
+                    break;
+                }
+            }
+
+            if (clickedFurnitureId) {
+                e.stopPropagation();
+                setSelectedFurniture(clickedFurnitureId);
+                setSelectedRoomId(null);
+                setEditingText(null);
+                // Start dragging immediately
+                const f = furniture.find(f => f.id === clickedFurnitureId);
+                if (f) {
+                    dragging.current = { id: clickedFurnitureId, startX: e.clientX, startY: e.clientY, origX: f.x, origY: f.y, isText: false };
+                }
+                return;
+            }
+
+            // ── Then check room walls ──
             let clickedRoomId: string | null = null;
-            // distance-to-segment check for all room walls
             for (const w of walls) {
                 if (!w.roomId) continue;
                 const l2 = (w.x2 - w.x1) ** 2 + (w.y2 - w.y1) ** 2;
@@ -390,7 +480,7 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
             const r = resizing.current;
             const dx = (e.clientX - r.startX) / zoom;
             const dy = (e.clientY - r.startY) / zoom;
-            const MIN = PX_PER_FT; // 1ft minimum
+            const MIN = PX_PER_FT / 4; // Allow much smaller minimum size (3 inches)
             setFurniture(prev => prev.map(f => {
                 if (f.id !== r.id) return f;
                 let nx = r.origX, ny = r.origY, nw = r.origW, nh = r.origH;
@@ -399,7 +489,9 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                 if (h.includes('l')) { const d = Math.min(dx, r.origW - MIN); nx = r.origX + d; nw = r.origW - d; }
                 if (h.includes('b')) { nh = Math.max(MIN, r.origH + dy); }
                 if (h.includes('t')) { const d = Math.min(dy, r.origH - MIN); ny = r.origY + d; nh = r.origH - d; }
-                return { ...f, x: snap(nx), y: snap(ny), w: snap(nw), h: snap(nh) };
+
+                // Remove snap() here for free-form precise resizing
+                return { ...f, x: nx, y: ny, w: nw, h: nh };
             }));
             return;
         }
@@ -445,9 +537,26 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
             lastMouse.current = { x: e.clientX, y: e.clientY };
             return;
         }
-        const pt = svgPoint(e.clientX, e.clientY);
-        setMousePos({ x: snap(pt.x), y: snap(pt.y) });
-    }, [svgPoint, zoom]);
+        let snapped = svgPoint(e.clientX, e.clientY);
+        if (tool === "draw" && drawStart) {
+            const dx = Math.abs(snapped.x - drawStart.x);
+            const dy = Math.abs(snapped.y - drawStart.y);
+            const TOLERANCE = 5 / zoom; // Auto-ortho within 5px
+
+            if (e.shiftKey) {
+                // Hard Ortho
+                if (dx > dy) snapped = { x: snapped.x, y: drawStart.y };
+                else snapped = { x: drawStart.x, y: snapped.y };
+            } else if (dx < TOLERANCE) {
+                // Auto-ortho vertical
+                snapped = { x: drawStart.x, y: snapped.y };
+            } else if (dy < TOLERANCE) {
+                // Auto-ortho horizontal
+                snapped = { x: snapped.x, y: drawStart.y };
+            }
+        }
+        setMousePos(snapped);
+    }, [svgPoint, zoom, drawStart, tool]);
 
     const handleMouseUp = useCallback(() => {
         isPanning.current = false;
@@ -501,41 +610,51 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                 }
             }
 
-            // Furniture specific keyboard controls
-            if (selectedFurniture) {
-
-                // Arrow keys for fine-grained alignment
-                if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+            // Arrow key nudging for fine-grained alignment
+            if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+                if (selectedFurniture || selectedRoomId) {
                     e.preventDefault(); // prevent page scroll
                     const moveAmt = e.shiftKey ? 10 : 1; // 10px with shift, 1px normal
 
-                    setFurniture(prev => prev.map(f => {
-                        if (f.id !== selectedFurniture) return f;
-                        let nx = f.x;
-                        let ny = f.y;
-                        if (e.key === "ArrowUp") ny -= moveAmt;
-                        if (e.key === "ArrowDown") ny += moveAmt;
-                        if (e.key === "ArrowLeft") nx -= moveAmt;
-                        if (e.key === "ArrowRight") nx += moveAmt;
-                        return { ...f, x: nx, y: ny };
-                    }));
+                    if (selectedFurniture) {
+                        setFurniture(prev => prev.map(f => {
+                            if (f.id !== selectedFurniture) return f;
+                            let nx = f.x, ny = f.y;
+                            if (e.key === "ArrowUp") ny -= moveAmt;
+                            if (e.key === "ArrowDown") ny += moveAmt;
+                            if (e.key === "ArrowLeft") nx -= moveAmt;
+                            if (e.key === "ArrowRight") nx += moveAmt;
+                            return { ...f, x: nx, y: ny };
+                        }));
 
-                    setTexts(prev => prev.map(t => {
-                        if (t.id !== selectedFurniture) return t;
-                        let nx = t.x;
-                        let ny = t.y;
-                        if (e.key === "ArrowUp") ny -= moveAmt;
-                        if (e.key === "ArrowDown") ny += moveAmt;
-                        if (e.key === "ArrowLeft") nx -= moveAmt;
-                        if (e.key === "ArrowRight") nx += moveAmt;
-                        return { ...t, x: nx, y: ny };
-                    }));
+                        setTexts(prev => prev.map(t => {
+                            if (t.id !== selectedFurniture) return t;
+                            let nx = t.x, ny = t.y;
+                            if (e.key === "ArrowUp") ny -= moveAmt;
+                            if (e.key === "ArrowDown") ny += moveAmt;
+                            if (e.key === "ArrowLeft") nx -= moveAmt;
+                            if (e.key === "ArrowRight") nx += moveAmt;
+                            return { ...t, x: nx, y: ny };
+                        }));
+                    }
+
+                    if (selectedRoomId) {
+                        setWalls(prev => prev.map(w => {
+                            if (w.roomId !== selectedRoomId) return w;
+                            let nx1 = w.x1, ny1 = w.y1, nx2 = w.x2, ny2 = w.y2;
+                            if (e.key === "ArrowUp") { ny1 -= moveAmt; ny2 -= moveAmt; }
+                            if (e.key === "ArrowDown") { ny1 += moveAmt; ny2 += moveAmt; }
+                            if (e.key === "ArrowLeft") { nx1 -= moveAmt; nx2 -= moveAmt; }
+                            if (e.key === "ArrowRight") { nx1 += moveAmt; nx2 += moveAmt; }
+                            return { ...w, x1: nx1, y1: ny1, x2: nx2, y2: ny2 };
+                        }));
+                    }
                 }
             }
         };
         window.addEventListener("keydown", handleKey);
         return () => window.removeEventListener("keydown", handleKey);
-    }, [undo, redo, selectedFurniture, selectedRoomId, walls, pushHistory]);
+    }, [undo, redo, selectedFurniture, selectedRoomId, walls, texts, setFurniture, setTexts, setWalls, pushHistory]);
 
     // ── Apply dimension ──────────────────────────────────────────────────
     const applyDim = useCallback(() => {
@@ -574,7 +693,7 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
 
     // ── Area calculation ─────────────────────────────────────────────────
     const totalArea = useMemo(() => {
-        if (walls.length < 3) return 0;
+        if (!walls || walls.length < 3) return 0;
         const pts = walls.map(w => ({ x: w.x1, y: w.y1 }));
         let a = 0;
         for (let i = 0; i < pts.length; i++) { const j = (i + 1) % pts.length; a += pts[i].x * pts[j].y - pts[j].x * pts[i].y; }
@@ -593,13 +712,13 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
         return () => window.removeEventListener("keydown", h);
     }, [undo, redo, selectedFurniture]);
 
-    // ── CSS grid background (FAST — zero DOM elements) ───────────────────
-    const gridBg = useMemo(() => {
-        const g = PX_PER_FT * zoom;
+    // ── Grid Background ──────────────────────────────────────────────────
+    const gridStyle = useMemo(() => {
+        const s = PX_PER_FT * zoom;
         return {
-            backgroundImage: `radial-gradient(circle, #D5D2CC ${Math.max(0.5, 0.8 * zoom)}px, transparent ${Math.max(0.5, 0.8 * zoom)}px)`,
-            backgroundSize: `${g}px ${g}px`,
-            backgroundPosition: `${pan.x % g}px ${pan.y % g}px`,
+            backgroundImage: `radial-gradient(circle, #D5D2CC ${Math.max(1, 1 * zoom)}px, transparent ${Math.max(1, 1 * zoom)}px)`,
+            backgroundSize: `${s}px ${s}px`,
+            backgroundPosition: `${pan.x % s}px ${pan.y % s}px`,
         };
     }, [zoom, pan]);
 
@@ -647,12 +766,15 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                         <span className="map-title">Map Builder</span>
                     </div>
 
-                    <div className="map-toolbar-right">
+                    <div className="map-toolbar-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button className="save-btn" onClick={exportMapAsPDF}>
+                            ↓ Download as PDF
+                        </button>
                         {onAnalyze && walls.length >= 3 && (
                             <button className="save-btn" onClick={() => {
                                 const poly = extractOuterPolygon(walls);
                                 if (poly.length >= 3) {
-                                    onAnalyze(poly);
+                                    onAnalyze(poly, walls, furniture, texts);
                                 } else {
                                     alert("Could not detect a closed outer boundary. Please ensure your standard walls connect to form a closed room.");
                                 }
@@ -674,11 +796,24 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                         <h4>Draw Walls</h4>
                         <div className="wall-type-grid">
                             {(["standard", "inner", "beam"] as const).map(t => (
-                                <button key={t} className={`wall-type-btn ${wallType === t && tool === "draw" ? "active" : ""}`}
-                                    onClick={() => { setWallType(t); setTool("draw"); }}>
-                                    <span className="wall-type-icon">{t === "standard" ? "═══" : t === "inner" ? "───" : "⋯⋯⋯"}</span>
-                                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                                </button>
+                                <div key={t} className="wall-type-item">
+                                    <button className={`wall-type-btn ${wallType === t && tool === "draw" ? "active" : ""}`}
+                                        onClick={() => { setWallType(t); setTool("draw"); }}>
+                                        <span className="wall-type-icon">
+                                            {t === "standard" ? "═══" : t === "inner" ? "───" : "⋯⋯⋯"}
+                                        </span>
+                                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                                    </button>
+                                    {t !== "standard" && (
+                                        <input
+                                            type="color"
+                                            value={t === "inner" ? innerWallColor : beamColor}
+                                            onChange={(e) => t === "inner" ? setInnerWallColor(e.target.value) : setBeamColor(e.target.value)}
+                                            className="wall-color-picker"
+                                            title={`Set ${t} color`}
+                                        />
+                                    )}
+                                </div>
                             ))}
                         </div>
                     </div>
@@ -762,7 +897,7 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                 </div>
 
                 {/* Canvas */}
-                <div ref={wrapperRef} className="map-canvas-wrapper" style={gridBg}
+                <div ref={wrapperRef} className="map-canvas-wrapper" style={gridStyle}
                     onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp} onWheel={handleWheel} onContextMenu={handleContextMenu}>
                     <svg ref={svgRef}>
@@ -781,13 +916,55 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                                     {w.roomId && selectedRoomId === w.roomId && (
                                         <line x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2} stroke="#B8860B" strokeWidth={16 / zoom} opacity={0.3} strokeLinecap="round" />
                                     )}
-                                    <line x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
-                                        stroke={w.type === "inner" ? "#6B6560" : "#1C1A15"}
-                                        strokeWidth={(w.type === "beam" ? 3 : w.thickness) / zoom}
-                                        strokeDasharray={w.type === "beam" ? `${6 / zoom} ${3 / zoom}` : w.type === "inner" ? `${4 / zoom} ${2 / zoom}` : "none"}
-                                        strokeLinecap="round" />
+                                    {w.type === "standard" ? (
+                                        <g>
+                                            {(() => {
+                                                const dx = w.x2 - w.x1;
+                                                const dy = w.y2 - w.y1;
+                                                const len = Math.sqrt(dx * dx + dy * dy);
+                                                if (len === 0) return null;
+                                                const radius = w.thickness / 2;
+                                                const nx = -(dy / len) * radius;
+                                                const ny = (dx / len) * radius;
+
+                                                // Image Refined style: Path with rounded caps and parallel edges
+                                                const d = `
+                                                    M ${w.x1 + nx} ${w.y1 + ny}
+                                                    L ${w.x2 + nx} ${w.y2 + ny}
+                                                    A ${radius} ${radius} 0 0 0 ${w.x2 - nx} ${w.y2 - ny}
+                                                    L ${w.x1 - nx} ${w.y1 - ny}
+                                                    A ${radius} ${radius} 0 0 0 ${w.x1 + nx} ${w.y1 + ny}
+                                                    Z
+                                                `;
+
+                                                return (
+                                                    <path d={d} fill="#FFFFFF" stroke="#1C1A15" strokeWidth={1.5 / zoom} strokeLinejoin="round" />
+                                                );
+                                            })()}
+                                        </g>
+                                    ) : (
+                                        <line x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
+                                            stroke={w.type === "inner" ? innerWallColor : beamColor}
+                                            strokeWidth={(w.type === "beam" ? 3 : w.thickness) / zoom}
+                                            strokeDasharray={w.type === "beam" ? `${6 / zoom} ${3 / zoom}` : "none"}
+                                            strokeLinecap="round" />
+                                    )}
                                     {showDims && w.lengthFt > 0 && (
-                                        <text x={(w.x1 + w.x2) / 2} y={(w.y1 + w.y2) / 2 - 8 / zoom}
+                                        <text
+                                            x={(() => {
+                                                const dx = w.x2 - w.x1;
+                                                const dy = w.y2 - w.y1;
+                                                const midX = (w.x1 + w.x2) / 2;
+                                                // Offset X for vertical walls
+                                                return Math.abs(dy) > Math.abs(dx) ? midX - 18 / zoom : midX;
+                                            })()}
+                                            y={(() => {
+                                                const dx = w.x2 - w.x1;
+                                                const dy = w.y2 - w.y1;
+                                                const midY = (w.y1 + w.y2) / 2;
+                                                // Offset Y for horizontal walls
+                                                return Math.abs(dx) >= Math.abs(dy) ? midY - 14 / zoom : midY;
+                                            })()}
                                             fontSize={10 / zoom} fill="#7A7567" textAnchor="middle"
                                             fontFamily="var(--font-mono)" fontWeight="500">
                                             {fmtFt(w.lengthFt, w.lengthIn)}
@@ -800,7 +977,7 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                             {furniture.map(f => {
                                 const render = FURN_ICONS[f.type];
                                 const selected = selectedFurniture === f.id;
-                                const hs = 5 / zoom; // handle size
+                                const hs = (f.type === 'window' ? 7 : 5) / zoom; // handle size
                                 return (
                                     <g key={f.id} transform={`translate(${f.x + f.w / 2},${f.y + f.h / 2}) rotate(${f.rotation}) translate(${-f.w / 2},${-f.h / 2})`}
                                         onMouseDown={(e) => { if (tool === 'select' || tool === 'draw') startDrag(e, f.id); }}
@@ -812,24 +989,29 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                                         <text x={f.w / 2} y={f.h + 10 / zoom} fontSize={8 / zoom} fill="#7A7567" textAnchor="middle" fontFamily="var(--font-mono)">{f.label}</text>
                                         {/* Resize handles + Rotate handle */}
                                         {selected && <>
-                                            {/* Rotate handle — circle above the item */}
+                                            {/* Rotate handle */}
                                             <line x1={f.w / 2} y1={-2} x2={f.w / 2} y2={-20 / zoom} stroke="#B8860B" strokeWidth={1 / zoom} />
                                             <circle cx={f.w / 2} cy={-20 / zoom} r={6 / zoom} fill="#fff" stroke="#B8860B" strokeWidth={1.2 / zoom}
                                                 style={{ cursor: 'grab' }}
                                                 onMouseDown={e => { e.stopPropagation(); startRotate(e, f.id); }} />
-                                            <text x={f.w / 2} y={-17 / zoom} fontSize={7 / zoom} fill="#B8860B" textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>↻</text>
-                                            {/* Rotation degree label */}
-                                            {f.rotation !== 0 && <text x={f.w / 2 + 12 / zoom} y={-18 / zoom} fontSize={7 / zoom} fill="#7A7567" fontFamily="var(--font-mono)">{f.rotation}°</text>}
-                                            {/* Corners */}
+
+                                            {/* Invisible thick edge lines for easier grab + dragging to resize */}
+                                            <rect x={0} y={-hs} width={f.w} height={hs * 2} fill="transparent" style={{ cursor: 'n-resize' }} onMouseDown={e => startResize(e, f.id, 't')} />
+                                            <rect x={0} y={f.h - hs} width={f.w} height={hs * 2} fill="transparent" style={{ cursor: 's-resize' }} onMouseDown={e => startResize(e, f.id, 'b')} />
+                                            <rect x={-hs} y={0} width={hs * 2} height={f.h} fill="transparent" style={{ cursor: 'w-resize' }} onMouseDown={e => startResize(e, f.id, 'l')} />
+                                            <rect x={f.w - hs} y={0} width={hs * 2} height={f.h} fill="transparent" style={{ cursor: 'e-resize' }} onMouseDown={e => startResize(e, f.id, 'r')} />
+
+                                            {/* Corner Visuals & exact Corner Hits */}
                                             <rect x={-hs} y={-hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'nw-resize' }} onMouseDown={e => startResize(e, f.id, 'tl')} />
                                             <rect x={f.w - hs} y={-hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'ne-resize' }} onMouseDown={e => startResize(e, f.id, 'tr')} />
                                             <rect x={-hs} y={f.h - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'sw-resize' }} onMouseDown={e => startResize(e, f.id, 'bl')} />
                                             <rect x={f.w - hs} y={f.h - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'se-resize' }} onMouseDown={e => startResize(e, f.id, 'br')} />
-                                            {/* Edge midpoints */}
-                                            <rect x={f.w / 2 - hs} y={-hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'n-resize' }} onMouseDown={e => startResize(e, f.id, 't')} />
-                                            <rect x={f.w / 2 - hs} y={f.h - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 's-resize' }} onMouseDown={e => startResize(e, f.id, 'b')} />
-                                            <rect x={-hs} y={f.h / 2 - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'w-resize' }} onMouseDown={e => startResize(e, f.id, 'l')} />
-                                            <rect x={f.w - hs} y={f.h / 2 - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'e-resize' }} onMouseDown={e => startResize(e, f.id, 'r')} />
+
+                                            {/* Edge center visual squares */}
+                                            <rect x={f.w / 2 - hs} y={-hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'n-resize', pointerEvents: 'none' }} />
+                                            <rect x={f.w / 2 - hs} y={f.h - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 's-resize', pointerEvents: 'none' }} />
+                                            <rect x={-hs} y={f.h / 2 - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'w-resize', pointerEvents: 'none' }} />
+                                            <rect x={f.w - hs} y={f.h / 2 - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'e-resize', pointerEvents: 'none' }} />
                                         </>}
                                     </g>
                                 );
@@ -970,7 +1152,7 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                         );
                     })()}
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 }

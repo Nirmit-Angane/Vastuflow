@@ -197,9 +197,16 @@
 
 /* Wall type buttons (3-col) */
 .wall-type-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.wall-type-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
 }
 
 .wall-type-btn {
@@ -207,7 +214,7 @@
     flex-direction: column;
     align-items: center;
     gap: 3px;
-    padding: 8px 2px;
+    padding: 8px 4px;
     border: 1px solid var(--border);
     border-radius: 6px;
     cursor: pointer;
@@ -215,6 +222,26 @@
     font: 400 10px var(--font-mono);
     color: var(--text-secondary);
     transition: all 0.15s;
+    flex: 1;
+}
+
+.wall-color-picker {
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+.wall-color-picker::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.wall-color-picker::-webkit-color-swatch {
+    border: none;
+    border-radius: 3px;
 }
 
 .wall-type-btn:hover,

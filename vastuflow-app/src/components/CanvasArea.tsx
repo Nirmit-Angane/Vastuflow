@@ -253,6 +253,29 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     </g>
                 )}
 
+                {/* -- MapBuilder Rendered Walls -- */}
+                {state.mapWalls && state.mapWalls.length > 0 && (
+                    <g className="map-walls-layer">
+                        {state.mapWalls.map((w: MapWall) => (
+                            <g key={w.id}>
+                                {w.type === "standard" ? (
+                                    <g>
+                                        <line x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2} stroke="#1C1A15" strokeWidth={w.thickness} strokeLinecap="round" opacity={0.5} />
+                                        {/* Simplified double line rendering for CanvasArea read-only view */}
+                                        <line x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2} stroke="#FFF" strokeWidth={Math.max(1, w.thickness - 2)} strokeLinecap="round" />
+                                    </g>
+                                ) : (
+                                    <line x1={w.x1} y1={w.y1} x2={w.x2} y2={w.y2}
+                                        stroke={w.type === "inner" ? "#AFA9A0" : "#CD853F"}
+                                        strokeWidth={w.type === "beam" ? 3 : w.thickness}
+                                        strokeDasharray={w.type === "beam" ? "6 3" : "none"}
+                                        strokeLinecap="round" />
+                                )}
+                            </g>
+                        ))}
+                    </g>
+                )}
+
                 {/* -- MapBuilder Rendered Furniture & Objects -- */}
                 {state.mapFurniture && state.mapFurniture.length > 0 && (
                     <g className="map-furniture-layer">
