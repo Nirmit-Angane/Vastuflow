@@ -13,7 +13,7 @@ import { computeSectorOverlaps, computeZoneScores, computeOverallScore } from "@
 import { compute32Devtas, getDevtaForPoint } from "@/core/geometry/devtas";
 import { VastuItem, PlacementStatus, VASTU_PLACEMENT_RULES, DEVTA_PLACEMENT_OVERRIDES } from "@/core/geometry/vastu-rules";
 import { MapFurniture, MapText, MapWall } from "@/components/map-builder/MapBuilder";
-import { generateMarmaPoints, MarmaPoint } from "@/core/geometry/marmaPoints";
+import { generateMarmaPoints, MarmaPoint, MarmaAxis } from "@/core/geometry/marmaPoints";
 
 export interface PlacedItem {
     id: string;
@@ -88,6 +88,7 @@ export interface ProjectState {
     mapTexts: MapText[];
     // Marma Points
     marmaPoints: MarmaPoint[];
+    marmaAxes: MarmaAxis[];
 }
 
 export function createEmptyProject(): ProjectState {
@@ -142,6 +143,7 @@ export function createEmptyProject(): ProjectState {
         mapFurniture: [],
         mapTexts: [],
         marmaPoints: [],
+        marmaAxes: [],
     };
 }
 
@@ -612,6 +614,7 @@ function recalculateAnalysis(state: ProjectState): ProjectState {
         overallScore,
         deviationCount,
         analysisSummary: summary,
-        marmaPoints,
+        marmaPoints: marmaPoints,
+        marmaAxes: marmaData ? marmaData.axes : [],
     };
 }
