@@ -44,10 +44,11 @@ export interface ReportData {
     analysis: ReportAnalysis;
     generatedAt: string;
     canvasImageUrl?: string | null;
+    canvasImageAspect?: number;
 }
 
 export function generateReport(data: ReportData): void {
-    const { floorPlan, analysis, generatedAt, canvasImageUrl } = data;
+    const { floorPlan, analysis, generatedAt, canvasImageUrl, canvasImageAspect } = data;
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const W = 210;
     let y = 20;
@@ -109,15 +110,25 @@ export function generateReport(data: ReportData): void {
         doc.text("Floor Plan Layout & Vastu Zone Map", 20, y);
         y += 6;
 
-        const mapW = W - 40;
-        const mapH = Math.round(mapW * (800 / 840));
+        let mapW = W - 40;
+        const aspect = canvasImageAspect ?? (800 / 840);
+        let mapH = Math.round(mapW * aspect);
+
+        // Cap the height to ensure it fits well on the page and doesn't push everything down too aggressively
+        if (mapH > 140) {
+            mapH = 140;
+            mapW = Math.round(140 / aspect);
+        }
 
         if (y + mapH > 270) { doc.addPage(); y = 20; }
 
+        // Center map horizontally
+        const mapX = 20 + ((W - 40) - mapW) / 2;
+
         doc.setDrawColor(226, 223, 216);
         doc.setLineWidth(0.4);
-        doc.rect(20, y, mapW, mapH);
-        doc.addImage(canvasImageUrl, "PNG", 20, y, mapW, mapH);
+        doc.rect(mapX, y, mapW, mapH);
+        doc.addImage(canvasImageUrl, "PNG", mapX, y, mapW, mapH);
         y += mapH + 15;
     }
 

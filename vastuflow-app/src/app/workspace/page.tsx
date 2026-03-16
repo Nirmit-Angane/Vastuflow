@@ -34,8 +34,13 @@ export default function WorkspacePage() {
             }
         } else {
             // Direct image
-            const url = URL.createObjectURL(file);
-            dispatch({ type: "LOAD_IMAGE", url, name: file.name, size: sizeMB });
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if (e.target?.result) {
+                    dispatch({ type: "LOAD_IMAGE", url: e.target.result as string, name: file.name, size: sizeMB });
+                }
+            };
+            reader.readAsDataURL(file);
         }
     }, []);
 
@@ -73,17 +78,56 @@ export default function WorkspacePage() {
 
         // Capture the SVG canvas as a PNG data URL
         let canvasImageUrl: string | null = null;
+        let canvasImageAspect: number | undefined;
         try {
             const svgEl = document.querySelector<SVGSVGElement>(".canvas-area svg");
             if (svgEl) {
-                // Determine bounding box to fit everything (Chakra + Polygon)
-                const chakraRadius = 400 * (state.chakraScale ?? 1.0);
-                const minX = Math.min(0, 420 - chakraRadius);
-                const minY = Math.min(0, 400 - chakraRadius);
-                const maxX = Math.max(840, 420 + chakraRadius);
-                const maxY = Math.max(800, 400 + chakraRadius);
+                let minX = 0; let minY = 0; let maxX = 840; let maxY = 800;
+                if (state.image) {
+                    // Start bounds based on rotated image corners
+                    const cx = 420; const cy = 400;
+                    const r = state.rotation ? state.rotation * Math.PI / 180 : 0;
+                    const corners = [
+                        { x: 0, y: 0 }, { x: 840, y: 0 },
+                        { x: 840, y: 800 }, { x: 0, y: 800 }
+                    ].map(p => {
+                        const dx = p.x - cx;
+                        const dy = p.y - cy;
+                        return { x: cx + dx * Math.cos(r) - dy * Math.sin(r), y: cy + dx * Math.sin(r) + dy * Math.cos(r) };
+                    });
+
+                    minX = Math.min(...corners.map(c => c.x));
+                    minY = Math.min(...corners.map(c => c.y));
+                    maxX = Math.max(...corners.map(c => c.x));
+                    maxY = Math.max(...corners.map(c => c.y));
+                }
+
+                if (state.centroid && isPhaseAtLeast(state.phase, Phase.ANALYZED)) {
+                    const chakraRadius = 400 * (state.chakraScale ?? 1.0);
+                    minX = Math.min(minX, state.centroid.x - chakraRadius);
+                    minY = Math.min(minY, state.centroid.y - chakraRadius);
+                    maxX = Math.max(maxX, state.centroid.x + chakraRadius);
+                    maxY = Math.max(maxY, state.centroid.y + chakraRadius);
+                }
+
+                if (state.polygon && state.polygon.length > 0) {
+                    const pxs = state.polygon.map(p => p.x);
+                    const pys = state.polygon.map(p => p.y);
+                    minX = Math.min(minX, ...pxs);
+                    minY = Math.min(minY, ...pys);
+                    maxX = Math.max(maxX, ...pxs);
+                    maxY = Math.max(maxY, ...pys);
+                }
+
+                // Add padding
+                minX -= 40;
+                minY -= 40;
+                maxX += 40;
+                maxY += 40;
+
                 const svgW = maxX - minX;
                 const svgH = maxY - minY;
+                canvasImageAspect = svgW > 0 ? svgH / svgW : (800 / 840);
 
                 // Clone for a clean export
                 const clone = svgEl.cloneNode(true) as SVGSVGElement;
@@ -112,6 +156,28 @@ export default function WorkspacePage() {
                     svg { background: #faf9f6; }
                 `;
                 clone.prepend(style);
+
+                // Convert blob URLs in <image> tags to Data URIs so they export cleanly
+                const images = clone.querySelectorAll("image");
+                for (let i = 0; i < images.length; i++) {
+                    const img = images[i];
+                    const href = img.getAttribute("href") || img.getAttribute("xlink:href");
+                    if (href && href.startsWith("blob:")) {
+                        try {
+                            const response = await fetch(href);
+                            const blob = await response.blob();
+                            const reader = new FileReader();
+                            const dataUrl = await new Promise<string>((resolve, reject) => {
+                                reader.onloadend = () => resolve(reader.result as string);
+                                reader.onerror = reject;
+                                reader.readAsDataURL(blob);
+                            });
+                            img.setAttribute("href", dataUrl);
+                        } catch (e) {
+                            console.warn("Could not convert blob URL to data URI for export:", e);
+                        }
+                    }
+                }
 
                 const svgBlob = new Blob(
                     [`<?xml version="1.0" encoding="UTF-8"?>`, clone.outerHTML],
@@ -174,6 +240,7 @@ export default function WorkspacePage() {
             },
             generatedAt: new Date().toLocaleString(),
             canvasImageUrl,
+            canvasImageAspect,
         });
     }, [state]);
 
