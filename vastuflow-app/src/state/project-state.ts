@@ -13,6 +13,7 @@ import { computeSectorOverlaps, computeZoneScores, computeOverallScore } from "@
 import { compute32Devtas, getDevtaForPoint } from "@/core/geometry/devtas";
 import { VastuItem, PlacementStatus, VASTU_PLACEMENT_RULES, DEVTA_PLACEMENT_OVERRIDES } from "@/core/geometry/vastu-rules";
 import { MapFurniture, MapText, MapWall } from "@/components/map-builder/MapBuilder";
+import { generateMarmaPoints, MarmaPoint } from "@/core/geometry/marmaPoints";
 
 export interface PlacedItem {
     id: string;
@@ -85,6 +86,8 @@ export interface ProjectState {
     mapWalls: MapWall[];
     mapFurniture: MapFurniture[];
     mapTexts: MapText[];
+    // Marma Points
+    marmaPoints: MarmaPoint[];
 }
 
 export function createEmptyProject(): ProjectState {
@@ -124,6 +127,7 @@ export function createEmptyProject(): ProjectState {
             sectors: false,
             zones: false,
             labels: true,
+            marma: false,
         },
         hoveredDirection: null,
         selectedDirection: null,
@@ -137,6 +141,7 @@ export function createEmptyProject(): ProjectState {
         mapWalls: [],
         mapFurniture: [],
         mapTexts: [],
+        marmaPoints: [],
     };
 }
 
@@ -476,6 +481,28 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
                 status = devtaOverrides[devtaName];
             }
 
+            // ── Marma Point Conflict Detection ──
+            // If the item is placed within 15px of a Marma node, apply energy-conflict penalty.
+            const MARMA_CONFLICT_RADIUS = 15; // SVG pixels
+            // Items that cause a "critical" energy disruption on Marma points
+            const MARMA_CRITICAL_ITEMS: VastuItem[] = ["Toilets", "Washing Machine", "Overhead Watertank"];
+            // Items that cause a "bad" disruption
+            const MARMA_BAD_ITEMS: VastuItem[] = ["Master Bedroom", "Kitchen", "Water Pump/Bore"];
+            const conflictingMarma = state.marmaPoints.find((mp: MarmaPoint) => {
+                const dx = mp.x - action.point.x;
+                const dy = mp.y - action.point.y;
+                return Math.sqrt(dx * dx + dy * dy) <= MARMA_CONFLICT_RADIUS;
+            });
+            if (conflictingMarma) {
+                if (MARMA_CRITICAL_ITEMS.includes(state.activePlacement)) {
+                    status = "worst";
+                } else if (MARMA_BAD_ITEMS.includes(state.activePlacement)) {
+                    status = "bad";
+                } else if (status === "best" || status === "good") {
+                    status = "bad";
+                }
+            }
+
             const newItem: PlacedItem = {
                 id: crypto.randomUUID(),
                 type: state.activePlacement,
@@ -570,6 +597,10 @@ function recalculateAnalysis(state: ProjectState): ProjectState {
     else if (overallScore >= 40) summary = "Moderate imbalance. Multiple sectors show significant area deviation.";
     else summary = "Significant geometric imbalance detected. Comprehensive spatial review needed.";
 
+    // Compute Marma Points from the CCW polygon
+    const marmaData = generateMarmaPoints(ccwPoly, state.chakraRotation);
+    const marmaPoints: MarmaPoint[] = marmaData ? marmaData.marmaPoints : [];
+
     return {
         ...state,
         polygonArea: totalArea,
@@ -581,5 +612,6 @@ function recalculateAnalysis(state: ProjectState): ProjectState {
         overallScore,
         deviationCount,
         analysisSummary: summary,
+        marmaPoints,
     };
 }

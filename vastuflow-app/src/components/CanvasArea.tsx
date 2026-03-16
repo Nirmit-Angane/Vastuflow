@@ -7,6 +7,7 @@ import { Phase, isPhaseAtLeast } from "@/state/phase";
 import { DIRECTION_COLORS, Point } from "@/core/geometry/types";
 import { MapFurniture, MapText, MapWall } from "@/components/map-builder/MapBuilder";
 import ShaktiChakra from "./ShaktiChakra";
+import MarmaLayer from "./MarmaLayer";
 
 const FURN_ICONS: Record<string, (w: number, h: number) => React.ReactNode> = {
     bed: (w, h) => (<>
@@ -318,7 +319,17 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     />
                 )}
 
-
+                {/* -- Marma Points Layer -- */}
+                {/* FIX (Bug 1): pass axes + marmaPoints from state instead of polygon + chakraRotation.
+                    MarmaLayer no longer recomputes — it renders exactly what the reducer stored,
+                    so the visual layer and collision detection (PLACE_ITEM) are always in sync. */}
+                {layers.marma && isPhaseAtLeast(phase, Phase.ANALYZED) && state.marmaPoints.length > 0 && (
+                    <MarmaLayer
+                        axes={state.marmaAxes}
+                        marmaPoints={state.marmaPoints}
+                        visible={true}
+                    />
+                )}
 
                 {/* -- Zone fills (from real overlap clipped polygons) -- */}
                 {layers.zones && isPhaseAtLeast(phase, Phase.ANALYZED) && sectorOverlaps.length > 0 && (
@@ -600,6 +611,6 @@ const LAYER_COLORS: Record<string, string> = {
     centroid: "#8B6914",
     sectors: "#7A8CA0",
     zones: "#3D7A4F",
-
+    marma: "#16a34a",
     labels: "#B0AB9E",
 };
