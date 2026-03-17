@@ -37,6 +37,7 @@ export interface ReportAnalysis {
     sectorOverlaps: SectorOverlap[];
     deviationCount: number;
     summary: string;
+    zoneResults?: Array<{ direction: string; areaReal: number }>;
 }
 
 export interface ReportData {
@@ -444,8 +445,8 @@ export async function generateReport(data: ReportData): Promise<void> {
     // Use actual area (Sq. Ft or raw values) instead of percentages if 'zoneResults' is available
     let vals = orderedDirections.map(d => {
         // Fallback to sector overlaps if zoneResults is missing
-        const matched = (analysis as any).zoneResults ? 
-            (analysis as any).zoneResults.find((o: any) => o.direction === d)?.areaReal :
+        const matched = analysis.zoneResults ? 
+            analysis.zoneResults.find(o => o.direction === d)?.areaReal :
             analysis.sectorOverlaps.find(o => o.direction === d)?.percentOfTotal;
         return matched || 0;
     });
