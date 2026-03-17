@@ -212,14 +212,30 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
     const isPanning = useRef(false);
     const lastMouse = useRef({ x: 0, y: 0 });
     const wrapperRef = useRef<HTMLDivElement>(null);
-    // Resize state: which furniture + which handle edge
+
+    // ── Interaction state refs ───────────────────────────────────────────
+    // These are refs so mouse-event handlers always see the latest value
+    // without needing to be re-registered.
     const resizing = useRef<{ id: string; handle: string; startX: number; startY: number; origX: number; origY: number; origW: number; origH: number } | null>(null);
-    // Dragging furniture/text state
     const dragging = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number; isText?: boolean } | null>(null);
-    // Dragging grouped rooms state
     const draggingRoom = useRef<{ roomId: string; startX: number; startY: number; originalWalls: MapWall[] } | null>(null);
-    // Rotating furniture/text state
     const rotating = useRef<{ id: string; centerX: number; centerY: number; startAngle: number; origRotation: number; isText?: boolean } | null>(null);
+
+    // Keep stable refs to the latest state so window-level handlers can read them
+    const wallsRef = useRef(walls);
+    useEffect(() => { wallsRef.current = walls; }, [walls]);
+    const furnitureRef = useRef(furniture);
+    useEffect(() => { furnitureRef.current = furniture; }, [furniture]);
+    const textsRef = useRef(texts);
+    useEffect(() => { textsRef.current = texts; }, [texts]);
+    const zoomRef = useRef(zoom);
+    useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+    const panRef = useRef(pan);
+    useEffect(() => { panRef.current = pan; }, [pan]);
+    const drawStartRef = useRef(drawStart);
+    useEffect(() => { drawStartRef.current = drawStart; }, [drawStart]);
+    const toolRef = useRef(tool);
+    useEffect(() => { toolRef.current = tool; }, [tool]);
 
     // ── History ──────────────────────────────────────────────────────────
     const pushHistory = useCallback((newWalls: MapWall[]) => {
@@ -227,35 +243,27 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
         setHistoryIdx(prev => prev + 1);
     }, [historyIdx]);
 
+    const pushHistoryRef = useRef(pushHistory);
+    useEffect(() => { pushHistoryRef.current = pushHistory; }, [pushHistory]);
+
     const exportMapAsPDF = useCallback(async () => {
         if (!wrapperRef.current) return;
         try {
-            // Temporarily hide UI overlays if needed, or just capture
             const canvas = await html2canvas(wrapperRef.current, { scale: 2, useCORS: true });
             const imgData = canvas.toDataURL("image/png");
-
-            // Calculate a good PDF size (A4 Landscape)
             const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
             const pdfW = pdf.internal.pageSize.getWidth();
             const pdfH = pdf.internal.pageSize.getHeight();
-
             const imgProps = pdf.getImageProperties(imgData);
             const ratio = imgProps.width / imgProps.height;
             let finalW = pdfW - 20;
             let finalH = finalW / ratio;
-
-            if (finalH > pdfH - 30) {
-                finalH = pdfH - 30;
-                finalW = finalH * ratio;
-            }
-
+            if (finalH > pdfH - 30) { finalH = pdfH - 30; finalW = finalH * ratio; }
             const x = (pdfW - finalW) / 2;
-
             pdf.setFont("helvetica", "bold");
             pdf.setFontSize(16);
             pdf.setTextColor(28, 26, 21);
             pdf.text("VastuFlow Floor Plan", 10, 15);
-
             pdf.addImage(imgData, "PNG", x, 25, finalW, finalH);
             pdf.save("VastuFlow_FloorPlan.pdf");
         } catch (error) {
@@ -272,63 +280,175 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
         if (historyIdx < history.length - 1) { setHistoryIdx(historyIdx + 1); setWalls(history[historyIdx + 1]); }
     }, [historyIdx, history]);
 
-    // ── SVG coordinate conversion with Smart Snapping ──────────────────
+    // ── SVG coordinate conversion ────────────────────────────────────────
     const svgPoint = useCallback((cx: number, cy: number, skipSnap = false) => {
         const svg = svgRef.current;
         if (!svg) return { x: 0, y: 0 };
         const r = svg.getBoundingClientRect();
-        const pt = { x: (cx - r.left - pan.x) / zoom, y: (cy - r.top - pan.y) / zoom };
-
+        const currentPan = panRef.current;
+        const currentZoom = zoomRef.current;
+        const pt = { x: (cx - r.left - currentPan.x) / currentZoom, y: (cy - r.top - currentPan.y) / currentZoom };
         if (skipSnap) return pt;
-
-        // 1. Check for nearby wall endpoints (Highest Priority)
-        const SNAP_DIST = 15 / zoom;
-        for (const w of walls) {
+        const SNAP_DIST = 15 / currentZoom;
+        for (const w of wallsRef.current) {
             const d1 = Math.sqrt((pt.x - w.x1) ** 2 + (pt.y - w.y1) ** 2);
             if (d1 < SNAP_DIST) return { x: w.x1, y: w.y1 };
             const d2 = Math.sqrt((pt.x - w.x2) ** 2 + (pt.y - w.y2) ** 2);
             if (d2 < SNAP_DIST) return { x: w.x2, y: w.y2 };
         }
-
-        // 2. Free pointer placement (high precision, no snapping to grid)
         return pt;
-    }, [pan, zoom, walls]);
+    }, []); // no deps — reads from refs
 
-    // ── Start resize on a furniture handle ─────────────────────────────
+    // ── Start resize on a furniture handle ──────────────────────────────
     const startResize = useCallback((e: React.MouseEvent, fId: string, handle: string) => {
         e.stopPropagation();
         e.preventDefault();
-        const f = furniture.find(f => f.id === fId);
+        const f = furnitureRef.current.find(f => f.id === fId);
         if (!f) return;
+        // Clear drag so resize takes exclusive control
+        dragging.current = null;
         resizing.current = { id: fId, handle, startX: e.clientX, startY: e.clientY, origX: f.x, origY: f.y, origW: f.w, origH: f.h };
-    }, [furniture]);
+    }, []);
 
-    // ── Start drag on a furniture/text item ─────────────────────────────────
+    // ── Start drag on a furniture/text item ─────────────────────────────
     const startDrag = useCallback((e: React.MouseEvent, id: string, isText = false) => {
         e.stopPropagation();
-        const item = isText ? texts.find(t => t.id === id) : furniture.find(f => f.id === id);
+        // If resize or rotate is already active (from a child handle), skip drag
+        if (resizing.current || rotating.current) return;
+        const item = isText ? textsRef.current.find(t => t.id === id) : furnitureRef.current.find(f => f.id === id);
         if (!item) return;
         setSelectedFurniture(id);
         dragging.current = { id, startX: e.clientX, startY: e.clientY, origX: item.x, origY: item.y, isText };
-    }, [furniture, texts]);
+    }, []);
 
-    // ── Start rotate on a furniture/text item ────────────────────────────────
+    // ── Start rotate on a furniture/text item ────────────────────────────
     const startRotate = useCallback((e: React.MouseEvent, id: string, isText = false) => {
         e.stopPropagation();
         e.preventDefault();
-        const item = isText ? texts.find(t => t.id === id) : furniture.find(f => f.id === id);
+        const item = isText ? textsRef.current.find(t => t.id === id) : furnitureRef.current.find(f => f.id === id);
         if (!item) return;
-        // Center of the item in SVG coords
         const w = (item as MapFurniture).w || 0;
         const h = (item as MapFurniture).h || 0;
         const cx = isText ? item.x : item.x + w / 2;
         const cy = isText ? item.y : item.y + h / 2;
         const pt = svgPoint(e.clientX, e.clientY);
         const startAngle = Math.atan2(pt.y - cy, pt.x - cx) * 180 / Math.PI;
+        // Clear drag so rotate takes exclusive control
+        dragging.current = null;
         rotating.current = { id, centerX: cx, centerY: cy, startAngle, origRotation: item.rotation, isText };
-    }, [furniture, texts, svgPoint]);
+    }, [svgPoint]);
 
-    // ── Mouse handlers ───────────────────────────────────────────────────
+    // ── Global mouse move (window-level so events don't die outside div) ─
+    useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            // ── Rotation ────────────────────────────────────────────────
+            if (rotating.current) {
+                const rot = rotating.current;
+                const pt = svgPoint(e.clientX, e.clientY);
+                const currentAngle = Math.atan2(pt.y - rot.centerY, pt.x - rot.centerX) * 180 / Math.PI;
+                const delta = currentAngle - rot.startAngle;
+                const snapped = Math.round((rot.origRotation + delta) / 15) * 15;
+                if (rot.isText) {
+                    setTexts(prev => prev.map(t => t.id !== rot.id ? t : { ...t, rotation: snapped }));
+                } else {
+                    setFurniture(prev => prev.map(f => f.id !== rot.id ? f : { ...f, rotation: snapped }));
+                }
+                return;
+            }
+            // ── Resize ──────────────────────────────────────────────────
+            if (resizing.current) {
+                const r = resizing.current;
+                const currentZoom = zoomRef.current;
+                const dx = (e.clientX - r.startX) / currentZoom;
+                const dy = (e.clientY - r.startY) / currentZoom;
+                const MIN = PX_PER_FT / 4;
+                setFurniture(prev => prev.map(f => {
+                    if (f.id !== r.id) return f;
+                    let nx = r.origX, ny = r.origY, nw = r.origW, nh = r.origH;
+                    const h = r.handle;
+                    if (h.includes('r')) { nw = Math.max(MIN, r.origW + dx); }
+                    if (h.includes('l')) { const d = Math.min(dx, r.origW - MIN); nx = r.origX + d; nw = r.origW - d; }
+                    if (h.includes('b')) { nh = Math.max(MIN, r.origH + dy); }
+                    if (h.includes('t')) { const d = Math.min(dy, r.origH - MIN); ny = r.origY + d; nh = r.origH - d; }
+                    return { ...f, x: nx, y: ny, w: nw, h: nh };
+                }));
+                return;
+            }
+            // ── Item drag ───────────────────────────────────────────────
+            if (dragging.current) {
+                const drag = dragging.current;
+                const currentZoom = zoomRef.current;
+                const dx = (e.clientX - drag.startX) / currentZoom;
+                const dy = (e.clientY - drag.startY) / currentZoom;
+                let nx = drag.origX + dx;
+                let ny = drag.origY + dy;
+                if (e.shiftKey) { nx = snap(nx); ny = snap(ny); }
+                if (drag.isText) {
+                    setTexts(prev => prev.map(t => t.id !== drag.id ? t : { ...t, x: nx, y: ny }));
+                } else {
+                    setFurniture(prev => prev.map(f => f.id !== drag.id ? f : { ...f, x: nx, y: ny }));
+                }
+                return;
+            }
+            // ── Room drag ───────────────────────────────────────────────
+            if (draggingRoom.current) {
+                const drag = draggingRoom.current;
+                const currentZoom = zoomRef.current;
+                const dx = (e.clientX - drag.startX) / currentZoom;
+                const dy = (e.clientY - drag.startY) / currentZoom;
+                setWalls(prev => prev.map(w => {
+                    if (w.roomId !== drag.roomId) return w;
+                    const orig = drag.originalWalls.find(ow => ow.id === w.id);
+                    if (!orig) return w;
+                    return { ...w, x1: snap(orig.x1 + dx), y1: snap(orig.y1 + dy), x2: snap(orig.x2 + dx), y2: snap(orig.y2 + dy) };
+                }));
+                return;
+            }
+            // ── Pan ─────────────────────────────────────────────────────
+            if (isPanning.current) {
+                setPan(prev => ({ x: prev.x + e.clientX - lastMouse.current.x, y: prev.y + e.clientY - lastMouse.current.y }));
+                lastMouse.current = { x: e.clientX, y: e.clientY };
+                return;
+            }
+            // ── Rubber-band preview ─────────────────────────────────────
+            let snapped = svgPoint(e.clientX, e.clientY);
+            const currentDrawStart = drawStartRef.current;
+            if (toolRef.current === "draw" && currentDrawStart) {
+                const dx = Math.abs(snapped.x - currentDrawStart.x);
+                const dy = Math.abs(snapped.y - currentDrawStart.y);
+                const TOLERANCE = 5 / zoomRef.current;
+                if (e.shiftKey) {
+                    if (dx > dy) snapped = { x: snapped.x, y: currentDrawStart.y };
+                    else snapped = { x: currentDrawStart.x, y: snapped.y };
+                } else if (dx < TOLERANCE) {
+                    snapped = { x: currentDrawStart.x, y: snapped.y };
+                } else if (dy < TOLERANCE) {
+                    snapped = { x: snapped.x, y: currentDrawStart.y };
+                }
+            }
+            setMousePos(snapped);
+        };
+
+        const onUp = () => {
+            isPanning.current = false;
+            if (draggingRoom.current) {
+                pushHistoryRef.current(wallsRef.current);
+            }
+            resizing.current = null;
+            dragging.current = null;
+            rotating.current = null;
+            draggingRoom.current = null;
+        };
+
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        return () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+        };
+    }, [svgPoint]); // svgPoint is stable (no deps itself)
+
+    // ── Canvas mousedown ─────────────────────────────────────────────────
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
         if (e.button === 1 || (e.button === 0 && e.altKey)) {
             isPanning.current = true;
@@ -337,19 +457,18 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
         }
         // Block drawing clicks while dimension popup is open
         if (editWall) return;
-        // Don't draw if resize/drag is active
-        if (resizing.current || dragging.current) return;
-        const pt = svgPoint(e.clientX, e.clientY, true); // Raw point for high precision selection/logic
-        let snapped = svgPoint(e.clientX, e.clientY); // Snapped point for drawing
+        // Don't interfere if a handle interaction is already in progress
+        if (resizing.current || dragging.current || rotating.current) return;
+
+        const pt = svgPoint(e.clientX, e.clientY, true);
+        let snapped = svgPoint(e.clientX, e.clientY);
 
         if (tool === "draw") {
             if (drawStart) {
                 const dx = Math.abs(snapped.x - drawStart.x);
                 const dy = Math.abs(snapped.y - drawStart.y);
                 const TOLERANCE = 5 / zoom;
-
                 if (e.shiftKey) {
-                    // Hard Ortho
                     if (dx > dy) snapped = { x: snapped.x, y: drawStart.y };
                     else snapped = { x: drawStart.x, y: snapped.y };
                 } else if (dx < TOLERANCE) {
@@ -394,11 +513,9 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
             setSelectedRoomId(null);
             setTool("select");
         } else if (tool === "select") {
-            // ── Check furniture/doors/windows first (by bounding-box hit test) ──
-            // We must account for item rotation by transforming the click point
+            // Hit-test furniture (rotated bounding box)
             let clickedFurnitureId: string | null = null;
-            for (const f of [...furniture].reverse()) {  // reverse so front items get priority
-                // Transform click point into the item's local (un-rotated) space
+            for (const f of [...furniture].reverse()) {
                 const cx = f.x + f.w / 2;
                 const cy = f.y + f.h / 2;
                 const rad = (f.rotation * Math.PI) / 180;
@@ -406,7 +523,6 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                 const sin = Math.sin(-rad);
                 const lx = cos * (pt.x - cx) - sin * (pt.y - cy) + f.w / 2;
                 const ly = sin * (pt.x - cx) + cos * (pt.y - cy) + f.h / 2;
-                // Add a small padding so clicking near the edge also works
                 const PAD = 4 / zoom;
                 if (lx >= -PAD && lx <= f.w + PAD && ly >= -PAD && ly <= f.h + PAD) {
                     clickedFurnitureId = f.id;
@@ -419,15 +535,17 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                 setSelectedFurniture(clickedFurnitureId);
                 setSelectedRoomId(null);
                 setEditingText(null);
-                // Start dragging immediately
-                const f = furniture.find(f => f.id === clickedFurnitureId);
-                if (f) {
-                    dragging.current = { id: clickedFurnitureId, startX: e.clientX, startY: e.clientY, origX: f.x, origY: f.y, isText: false };
+                // Only start drag if no handle interaction started from a child element
+                if (!resizing.current && !rotating.current) {
+                    const f = furniture.find(f => f.id === clickedFurnitureId);
+                    if (f) {
+                        dragging.current = { id: clickedFurnitureId, startX: e.clientX, startY: e.clientY, origX: f.x, origY: f.y, isText: false };
+                    }
                 }
                 return;
             }
 
-            // ── Then check room walls ──
+            // Hit-test room walls
             let clickedRoomId: string | null = null;
             for (const w of walls) {
                 if (!w.roomId) continue;
@@ -439,10 +557,7 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                 const projX = w.x1 + t * (w.x2 - w.x1);
                 const projY = w.y1 + t * (w.y2 - w.y1);
                 const dist = Math.sqrt((pt.x - projX) ** 2 + (pt.y - projY) ** 2);
-                if (dist < 10 / zoom) {
-                    clickedRoomId = w.roomId;
-                    break;
-                }
+                if (dist < 10 / zoom) { clickedRoomId = w.roomId; break; }
             }
 
             if (clickedRoomId) {
@@ -459,116 +574,6 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
         }
     }, [tool, drawStart, walls, wallType, svgPoint, pushHistory, placingFurniture, editWall, zoom, furniture]);
 
-    const handleMouseMove = useCallback((e: React.MouseEvent) => {
-        // Rotation dragging
-        if (rotating.current) {
-            const rot = rotating.current;
-            const pt = svgPoint(e.clientX, e.clientY);
-            const currentAngle = Math.atan2(pt.y - rot.centerY, pt.x - rot.centerX) * 180 / Math.PI;
-            const delta = currentAngle - rot.startAngle;
-            // Snap to 15° increments
-            const snapped = Math.round((rot.origRotation + delta) / 15) * 15;
-            if (rot.isText) {
-                setTexts(prev => prev.map(t => t.id !== rot.id ? t : { ...t, rotation: snapped }));
-            } else {
-                setFurniture(prev => prev.map(f => f.id !== rot.id ? f : { ...f, rotation: snapped }));
-            }
-            return;
-        }
-        // Resize dragging
-        if (resizing.current) {
-            const r = resizing.current;
-            const dx = (e.clientX - r.startX) / zoom;
-            const dy = (e.clientY - r.startY) / zoom;
-            const MIN = PX_PER_FT / 4; // Allow much smaller minimum size (3 inches)
-            setFurniture(prev => prev.map(f => {
-                if (f.id !== r.id) return f;
-                let nx = r.origX, ny = r.origY, nw = r.origW, nh = r.origH;
-                const h = r.handle;
-                if (h.includes('r')) { nw = Math.max(MIN, r.origW + dx); }
-                if (h.includes('l')) { const d = Math.min(dx, r.origW - MIN); nx = r.origX + d; nw = r.origW - d; }
-                if (h.includes('b')) { nh = Math.max(MIN, r.origH + dy); }
-                if (h.includes('t')) { const d = Math.min(dy, r.origH - MIN); ny = r.origY + d; nh = r.origH - d; }
-
-                // Remove snap() here for free-form precise resizing
-                return { ...f, x: nx, y: ny, w: nw, h: nh };
-            }));
-            return;
-        }
-        // Item dragging
-        if (dragging.current) {
-            const drag = dragging.current;
-            const dx = (e.clientX - drag.startX) / zoom;
-            const dy = (e.clientY - drag.startY) / zoom;
-            let nx = drag.origX + dx;
-            let ny = drag.origY + dy;
-            if (e.shiftKey) { nx = snap(nx); ny = snap(ny); }
-            if (drag.isText) {
-                setTexts(prev => prev.map(t => t.id !== drag.id ? t : { ...t, x: nx, y: ny }));
-            } else {
-                setFurniture(prev => prev.map(f => f.id !== drag.id ? f : { ...f, x: nx, y: ny }));
-            }
-            return;
-        }
-        // Room dragging
-        if (draggingRoom.current) {
-            const drag = draggingRoom.current;
-            const dx = (e.clientX - drag.startX) / zoom;
-            const dy = (e.clientY - drag.startY) / zoom;
-            setWalls(prev => prev.map(w => {
-                if (w.roomId !== drag.roomId) return w;
-                const orig = drag.originalWalls.find(ow => ow.id === w.id);
-                if (!orig) return w;
-                return {
-                    ...w,
-                    x1: snap(orig.x1 + dx),
-                    y1: snap(orig.y1 + dy),
-                    x2: snap(orig.x2 + dx),
-                    y2: snap(orig.y2 + dy)
-                };
-            }));
-            return;
-        }
-        if (isPanning.current) {
-            setPan(prev => ({
-                x: prev.x + e.clientX - lastMouse.current.x,
-                y: prev.y + e.clientY - lastMouse.current.y,
-            }));
-            lastMouse.current = { x: e.clientX, y: e.clientY };
-            return;
-        }
-        let snapped = svgPoint(e.clientX, e.clientY);
-        if (tool === "draw" && drawStart) {
-            const dx = Math.abs(snapped.x - drawStart.x);
-            const dy = Math.abs(snapped.y - drawStart.y);
-            const TOLERANCE = 5 / zoom; // Auto-ortho within 5px
-
-            if (e.shiftKey) {
-                // Hard Ortho
-                if (dx > dy) snapped = { x: snapped.x, y: drawStart.y };
-                else snapped = { x: drawStart.x, y: snapped.y };
-            } else if (dx < TOLERANCE) {
-                // Auto-ortho vertical
-                snapped = { x: drawStart.x, y: snapped.y };
-            } else if (dy < TOLERANCE) {
-                // Auto-ortho horizontal
-                snapped = { x: snapped.x, y: drawStart.y };
-            }
-        }
-        setMousePos(snapped);
-    }, [svgPoint, zoom, drawStart, tool]);
-
-    const handleMouseUp = useCallback(() => {
-        isPanning.current = false;
-        resizing.current = null;
-        if (draggingRoom.current) {
-            pushHistory(walls); // Record the room drop
-        }
-        dragging.current = null;
-        rotating.current = null;
-        draggingRoom.current = null;
-    }, [walls, pushHistory]);
-
     const handleWheel = useCallback((e: React.WheelEvent) => {
         e.preventDefault();
         setZoom(prev => Math.max(0.2, Math.min(5, prev * (e.deltaY < 0 ? 1.1 : 0.9))));
@@ -582,43 +587,42 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
     // ── Keyboard ─────────────────────────────────────────────────────────
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
-            // Ignore keystrokes if we are actively editing an input
-            if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") {
-                return;
-            }
+            if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
 
             if (e.key === "Escape") {
-                setDrawStart(null);
-                setEditWall(null);
-                setPlacingFurniture(null);
-                setSelectedFurniture(null);
-                setEditingText(null);
-                setSelectedRoomId(null);
+                setDrawStart(null); setEditWall(null); setPlacingFurniture(null);
+                setSelectedFurniture(null); setEditingText(null); setSelectedRoomId(null);
             }
             if (e.ctrlKey && e.key === "z") undo();
             if (e.ctrlKey && e.key === "y") redo();
 
             if (e.key === "Delete" || e.key === "Backspace") {
-                if (selectedFurniture) {
-                    setFurniture(p => p.filter(f => f.id !== selectedFurniture));
-                    setTexts(p => p.filter(t => t.id !== selectedFurniture));
-                    setSelectedFurniture(null);
-                } else if (selectedRoomId) {
-                    setWalls(p => p.filter(w => w.roomId !== selectedRoomId));
-                    setSelectedRoomId(null);
-                    pushHistory(walls.filter(w => w.roomId !== selectedRoomId));
-                }
+                setSelectedFurniture(prev => {
+                    if (prev) {
+                        setFurniture(p => p.filter(f => f.id !== prev));
+                        setTexts(p => p.filter(t => t.id !== prev));
+                    }
+                    return null;
+                });
+                setSelectedRoomId(prev => {
+                    if (prev) {
+                        setWalls(p => {
+                            const next = p.filter(w => w.roomId !== prev);
+                            pushHistoryRef.current(next);
+                            return next;
+                        });
+                    }
+                    return null;
+                });
             }
 
-            // Arrow key nudging for fine-grained alignment
             if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
-                if (selectedFurniture || selectedRoomId) {
-                    e.preventDefault(); // prevent page scroll
-                    const moveAmt = e.shiftKey ? 10 : 1; // 10px with shift, 1px normal
-
-                    if (selectedFurniture) {
+                e.preventDefault();
+                const moveAmt = e.shiftKey ? 10 : 1;
+                setSelectedFurniture(selId => {
+                    if (selId) {
                         setFurniture(prev => prev.map(f => {
-                            if (f.id !== selectedFurniture) return f;
+                            if (f.id !== selId) return f;
                             let nx = f.x, ny = f.y;
                             if (e.key === "ArrowUp") ny -= moveAmt;
                             if (e.key === "ArrowDown") ny += moveAmt;
@@ -626,9 +630,8 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                             if (e.key === "ArrowRight") nx += moveAmt;
                             return { ...f, x: nx, y: ny };
                         }));
-
                         setTexts(prev => prev.map(t => {
-                            if (t.id !== selectedFurniture) return t;
+                            if (t.id !== selId) return t;
                             let nx = t.x, ny = t.y;
                             if (e.key === "ArrowUp") ny -= moveAmt;
                             if (e.key === "ArrowDown") ny += moveAmt;
@@ -637,10 +640,12 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                             return { ...t, x: nx, y: ny };
                         }));
                     }
-
-                    if (selectedRoomId) {
+                    return selId;
+                });
+                setSelectedRoomId(roomId => {
+                    if (roomId) {
                         setWalls(prev => prev.map(w => {
-                            if (w.roomId !== selectedRoomId) return w;
+                            if (w.roomId !== roomId) return w;
                             let nx1 = w.x1, ny1 = w.y1, nx2 = w.x2, ny2 = w.y2;
                             if (e.key === "ArrowUp") { ny1 -= moveAmt; ny2 -= moveAmt; }
                             if (e.key === "ArrowDown") { ny1 += moveAmt; ny2 += moveAmt; }
@@ -649,12 +654,13 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                             return { ...w, x1: nx1, y1: ny1, x2: nx2, y2: ny2 };
                         }));
                     }
-                }
+                    return roomId;
+                });
             }
         };
         window.addEventListener("keydown", handleKey);
         return () => window.removeEventListener("keydown", handleKey);
-    }, [undo, redo, selectedFurniture, selectedRoomId, walls, texts, setFurniture, setTexts, setWalls, pushHistory]);
+    }, [undo, redo]);
 
     // ── Apply dimension ──────────────────────────────────────────────────
     const applyDim = useCallback(() => {
@@ -674,8 +680,10 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
 
     // ── Place room preset ────────────────────────────────────────────────
     const placeRoom = useCallback((p: { wFt: number, hFt: number }) => {
-        const x = snap((-pan.x / zoom) + 300 / zoom);
-        const y = snap((-pan.y / zoom) + 200 / zoom);
+        const currentPan = panRef.current;
+        const currentZoom = zoomRef.current;
+        const x = snap((-currentPan.x / currentZoom) + 300 / currentZoom);
+        const y = snap((-currentPan.y / currentZoom) + 200 / currentZoom);
         const w = p.wFt * PX_PER_FT, h = p.hFt * PX_PER_FT;
         const rid = uid();
         const nw: MapWall[] = [
@@ -689,7 +697,7 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
         pushHistory(all);
         setSelectedRoomId(rid);
         setTool("select");
-    }, [walls, pan, zoom, pushHistory, wallColor]);
+    }, [walls, pushHistory, wallColor]);
 
     // ── Area calculation ─────────────────────────────────────────────────
     const totalArea = useMemo(() => {
@@ -699,18 +707,6 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
         for (let i = 0; i < pts.length; i++) { const j = (i + 1) % pts.length; a += pts[i].x * pts[j].y - pts[j].x * pts[i].y; }
         return Math.abs(a / 2) / (PX_PER_FT * PX_PER_FT);
     }, [walls]);
-
-    // ── Keyboard ─────────────────────────────────────────────────────────
-    useEffect(() => {
-        const h = (e: KeyboardEvent) => {
-            if (e.key === "Escape") { setDrawStart(null); setEditWall(null); setPlacingFurniture(null); }
-            if (e.ctrlKey && e.key === "z") undo();
-            if (e.ctrlKey && e.key === "y") redo();
-            if (e.key === "Delete" && selectedFurniture) { setFurniture(p => p.filter(f => f.id !== selectedFurniture)); setSelectedFurniture(null); }
-        };
-        window.addEventListener("keydown", h);
-        return () => window.removeEventListener("keydown", h);
-    }, [undo, redo, selectedFurniture]);
 
     // ── Grid Background ──────────────────────────────────────────────────
     const gridStyle = useMemo(() => {
@@ -765,11 +761,8 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                     <div className="map-toolbar-center">
                         <span className="map-title">Map Builder</span>
                     </div>
-
                     <div className="map-toolbar-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button className="save-btn" onClick={exportMapAsPDF}>
-                            ↓ Download as PDF
-                        </button>
+                        <button className="save-btn" onClick={exportMapAsPDF}>↓ Download as PDF</button>
                         {onAnalyze && walls.length >= 3 && (
                             <button className="save-btn" onClick={() => {
                                 const poly = extractOuterPolygon(walls);
@@ -778,13 +771,9 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                                 } else {
                                     alert("Could not detect a closed outer boundary. Please ensure your standard walls connect to form a closed room.");
                                 }
-                            }}>
-                                Analyze →
-                            </button>
+                            }}>Analyze →</button>
                         )}
-                        <button className="icon-btn" onClick={onExit} title="Close">
-                            ✕
-                        </button>
+                        <button className="icon-btn" onClick={onExit} title="Close">✕</button>
                     </div>
                 </div>
             </div>
@@ -896,13 +885,14 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                     </div>
                 </div>
 
-                {/* Canvas */}
+                {/* Canvas — only needs mousedown and wheel; move/up are on window */}
                 <div ref={wrapperRef} className="map-canvas-wrapper" style={gridStyle}
-                    onMouseDown={handleMouseDown} onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp} onWheel={handleWheel} onContextMenu={handleContextMenu}>
+                    onMouseDown={handleMouseDown}
+                    onWheel={handleWheel}
+                    onContextMenu={handleContextMenu}>
                     <svg ref={svgRef}>
                         <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
-                            {/* Ruler labels — only visible range */}
+                            {/* Ruler labels */}
                             {visibleRulers.xs.map(i => (
                                 <text key={`rx-${i}`} x={i * PX_PER_FT} y={-8} fontSize={9 / zoom} fill="#B0AB9E" textAnchor="middle" fontFamily="var(--font-mono)">{i}&apos;</text>
                             ))}
@@ -919,27 +909,13 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                                     {w.type === "standard" ? (
                                         <g>
                                             {(() => {
-                                                const dx = w.x2 - w.x1;
-                                                const dy = w.y2 - w.y1;
+                                                const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
                                                 const len = Math.sqrt(dx * dx + dy * dy);
                                                 if (len === 0) return null;
                                                 const radius = w.thickness / 2;
-                                                const nx = -(dy / len) * radius;
-                                                const ny = (dx / len) * radius;
-
-                                                // Image Refined style: Path with rounded caps and parallel edges
-                                                const d = `
-                                                    M ${w.x1 + nx} ${w.y1 + ny}
-                                                    L ${w.x2 + nx} ${w.y2 + ny}
-                                                    A ${radius} ${radius} 0 0 0 ${w.x2 - nx} ${w.y2 - ny}
-                                                    L ${w.x1 - nx} ${w.y1 - ny}
-                                                    A ${radius} ${radius} 0 0 0 ${w.x1 + nx} ${w.y1 + ny}
-                                                    Z
-                                                `;
-
-                                                return (
-                                                    <path d={d} fill="#FFFFFF" stroke="#1C1A15" strokeWidth={1.5 / zoom} strokeLinejoin="round" />
-                                                );
+                                                const nx = -(dy / len) * radius, ny = (dx / len) * radius;
+                                                const d = `M ${w.x1 + nx} ${w.y1 + ny} L ${w.x2 + nx} ${w.y2 + ny} A ${radius} ${radius} 0 0 0 ${w.x2 - nx} ${w.y2 - ny} L ${w.x1 - nx} ${w.y1 - ny} A ${radius} ${radius} 0 0 0 ${w.x1 + nx} ${w.y1 + ny} Z`;
+                                                return <path d={d} fill="#FFFFFF" stroke="#1C1A15" strokeWidth={1.5 / zoom} strokeLinejoin="round" />;
                                             })()}
                                         </g>
                                     ) : (
@@ -952,17 +928,13 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                                     {showDims && w.lengthFt > 0 && (
                                         <text
                                             x={(() => {
-                                                const dx = w.x2 - w.x1;
-                                                const dy = w.y2 - w.y1;
+                                                const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
                                                 const midX = (w.x1 + w.x2) / 2;
-                                                // Offset X for vertical walls
                                                 return Math.abs(dy) > Math.abs(dx) ? midX - 18 / zoom : midX;
                                             })()}
                                             y={(() => {
-                                                const dx = w.x2 - w.x1;
-                                                const dy = w.y2 - w.y1;
+                                                const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
                                                 const midY = (w.y1 + w.y2) / 2;
-                                                // Offset Y for horizontal walls
                                                 return Math.abs(dx) >= Math.abs(dy) ? midY - 14 / zoom : midY;
                                             })()}
                                             fontSize={10 / zoom} fill="#7A7567" textAnchor="middle"
@@ -973,114 +945,93 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                                 </g>
                             ))}
 
-                            {/* Furniture — realistic shapes + resize handles */}
+                            {/* Furniture */}
                             {furniture.map(f => {
                                 const render = FURN_ICONS[f.type];
                                 const selected = selectedFurniture === f.id;
-                                const hs = (f.type === 'window' ? 7 : 5) / zoom; // handle size
+                                const hs = (f.type === 'window' ? 7 : 5) / zoom;
                                 return (
-                                    <g key={f.id} transform={`translate(${f.x + f.w / 2},${f.y + f.h / 2}) rotate(${f.rotation}) translate(${-f.w / 2},${-f.h / 2})`}
-                                        onMouseDown={(e) => { if (tool === 'select' || tool === 'draw') startDrag(e, f.id); }}
+                                    <g key={f.id}
+                                        transform={`translate(${f.x + f.w / 2},${f.y + f.h / 2}) rotate(${f.rotation}) translate(${-f.w / 2},${-f.h / 2})`}
+                                        onMouseDown={(e) => {
+                                            // Only start drag if no handle interaction was triggered by a child
+                                            if ((tool === 'select' || tool === 'draw') && !resizing.current && !rotating.current) {
+                                                startDrag(e, f.id);
+                                            }
+                                        }}
                                         style={{ cursor: selected ? "move" : "pointer" }}>
                                         {selected && <rect x={-2} y={-2} width={f.w + 4} height={f.h + 4} fill="none" stroke="#B8860B" strokeWidth={1.5 / zoom} strokeDasharray={`${3 / zoom} ${2 / zoom}`} rx={3 / zoom} />}
                                         <g transform={`scale(${f.w / 36},${f.h / 28})`}>
                                             {render ? render(36, 28) : <rect width={36} height={28} fill="#E8DCC8" stroke="#8B7D6B" strokeWidth={1} />}
                                         </g>
                                         <text x={f.w / 2} y={f.h + 10 / zoom} fontSize={8 / zoom} fill="#7A7567" textAnchor="middle" fontFamily="var(--font-mono)">{f.label}</text>
-                                        {/* Resize handles + Rotate handle */}
+
                                         {selected && <>
                                             {/* Rotate handle */}
                                             <line x1={f.w / 2} y1={-2} x2={f.w / 2} y2={-20 / zoom} stroke="#B8860B" strokeWidth={1 / zoom} />
                                             <circle cx={f.w / 2} cy={-20 / zoom} r={6 / zoom} fill="#fff" stroke="#B8860B" strokeWidth={1.2 / zoom}
                                                 style={{ cursor: 'grab' }}
-                                                onMouseDown={e => { e.stopPropagation(); startRotate(e, f.id); }} />
+                                                onMouseDown={e => { e.stopPropagation(); e.preventDefault(); startRotate(e, f.id); }} />
+                                            <text x={f.w / 2} y={-20 / zoom + 0.5} fontSize={7 / zoom} fill="#B8860B" textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>↻</text>
 
-                                            {/* Invisible thick edge lines for easier grab + dragging to resize */}
+                                            {/* Invisible thick edge zones for resize */}
                                             <rect x={0} y={-hs} width={f.w} height={hs * 2} fill="transparent" style={{ cursor: 'n-resize' }} onMouseDown={e => startResize(e, f.id, 't')} />
                                             <rect x={0} y={f.h - hs} width={f.w} height={hs * 2} fill="transparent" style={{ cursor: 's-resize' }} onMouseDown={e => startResize(e, f.id, 'b')} />
                                             <rect x={-hs} y={0} width={hs * 2} height={f.h} fill="transparent" style={{ cursor: 'w-resize' }} onMouseDown={e => startResize(e, f.id, 'l')} />
                                             <rect x={f.w - hs} y={0} width={hs * 2} height={f.h} fill="transparent" style={{ cursor: 'e-resize' }} onMouseDown={e => startResize(e, f.id, 'r')} />
 
-                                            {/* Corner Visuals & exact Corner Hits */}
+                                            {/* Corner handles */}
                                             <rect x={-hs} y={-hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'nw-resize' }} onMouseDown={e => startResize(e, f.id, 'tl')} />
                                             <rect x={f.w - hs} y={-hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'ne-resize' }} onMouseDown={e => startResize(e, f.id, 'tr')} />
                                             <rect x={-hs} y={f.h - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'sw-resize' }} onMouseDown={e => startResize(e, f.id, 'bl')} />
                                             <rect x={f.w - hs} y={f.h - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'se-resize' }} onMouseDown={e => startResize(e, f.id, 'br')} />
 
-                                            {/* Edge center visual squares */}
-                                            <rect x={f.w / 2 - hs} y={-hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'n-resize', pointerEvents: 'none' }} />
-                                            <rect x={f.w / 2 - hs} y={f.h - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 's-resize', pointerEvents: 'none' }} />
-                                            <rect x={-hs} y={f.h / 2 - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'w-resize', pointerEvents: 'none' }} />
-                                            <rect x={f.w - hs} y={f.h / 2 - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ cursor: 'e-resize', pointerEvents: 'none' }} />
+                                            {/* Edge center visual squares (display only) */}
+                                            <rect x={f.w / 2 - hs} y={-hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ pointerEvents: 'none' }} />
+                                            <rect x={f.w / 2 - hs} y={f.h - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ pointerEvents: 'none' }} />
+                                            <rect x={-hs} y={f.h / 2 - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ pointerEvents: 'none' }} />
+                                            <rect x={f.w - hs} y={f.h / 2 - hs} width={hs * 2} height={hs * 2} fill="#fff" stroke="#B8860B" strokeWidth={1 / zoom} style={{ pointerEvents: 'none' }} />
                                         </>}
                                     </g>
                                 );
                             })}
 
-                            {/* Texts — click to edit or drag */}
+                            {/* Texts */}
                             {texts.map(t => {
                                 const selected = selectedFurniture === t.id;
                                 const isEditing = editingText === t.id;
-                                if (isEditing) return null; // hide text while editing in DOM overlay
+                                if (isEditing) return null;
                                 const tWidth = t.text.length * (t.fontSize * 0.6);
                                 const boxW = tWidth + 20;
-
                                 return (
                                     <g key={t.id} transform={`translate(${t.x},${t.y}) rotate(${t.rotation})`}
                                         onMouseDown={(e) => {
-                                            e.stopPropagation(); // Prevent canvas background from deselecting
-                                            if (tool === 'select') startDrag(e, t.id, true);
-                                        }}
-                                        onDoubleClick={(e) => {
                                             e.stopPropagation();
-                                            setEditingText(t.id);
-                                            setSelectedFurniture(t.id);
+                                            if (tool === 'select' && !resizing.current && !rotating.current) startDrag(e, t.id, true);
                                         }}
+                                        onDoubleClick={(e) => { e.stopPropagation(); setEditingText(t.id); setSelectedFurniture(t.id); }}
                                         style={{ cursor: selected ? "move" : "pointer" }}>
-
-                                        {/* Invisible clickable hit box for easier selection */}
                                         <rect x={-boxW / 2} y={-t.fontSize} width={boxW} height={t.fontSize * 2} fill="transparent" />
-
                                         {selected && <rect x={-boxW / 2} y={-t.fontSize} width={boxW} height={t.fontSize * 2} fill="none" stroke="#B8860B" strokeWidth={1.5 / zoom} strokeDasharray={`${3 / zoom} ${2 / zoom}`} rx={3 / zoom} />}
                                         <text x={0} y={0} fontSize={t.fontSize} fill="#1C1A15" textAnchor="middle" dominantBaseline="middle" fontFamily="var(--font-primary)" fontWeight={500} style={{ pointerEvents: 'none', userSelect: 'none' }}>{t.text}</text>
-
-                                        {/* Resize handles + Rotate handle */}
                                         {selected && <>
-                                            {/* Rotate handle — circle above the item */}
                                             <line x1={0} y1={-(t.fontSize + 10)} x2={0} y2={-(t.fontSize + 25)} stroke="#B8860B" strokeWidth={1 / zoom} />
                                             <circle cx={0} cy={-(t.fontSize + 25)} r={6 / zoom} fill="#fff" stroke="#B8860B" strokeWidth={1.2 / zoom}
                                                 style={{ cursor: 'grab' }}
-                                                onMouseDown={e => { e.stopPropagation(); startRotate(e, t.id, true); }} />
-                                            <text x={0} y={-(t.fontSize + 23)} fontSize={7 / zoom} fill="#B8860B" textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>↻</text>
-
-                                            {/* Delete handle (x) */}
+                                                onMouseDown={e => { e.stopPropagation(); e.preventDefault(); startRotate(e, t.id, true); }} />
+                                            <text x={0} y={-(t.fontSize + 25)} fontSize={7 / zoom} fill="#B8860B" textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>↻</text>
                                             <circle cx={boxW / 2 + 10} cy={-t.fontSize} r={8 / zoom} fill="#ff4d4d" stroke="#fff" strokeWidth={1 / zoom}
                                                 style={{ cursor: 'pointer' }}
-                                                onMouseDown={e => {
-                                                    e.stopPropagation();
-                                                    setTexts(prev => prev.filter(x => x.id !== t.id));
-                                                    setSelectedFurniture(null);
-                                                    setEditingText(null);
-                                                }} />
-                                            <text x={boxW / 2 + 10} y={-t.fontSize + 0.5 / zoom} fontSize={10 / zoom} fill="#fff" textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>✕</text>
-
-                                            {/* A+ handle */}
+                                                onMouseDown={e => { e.stopPropagation(); setTexts(prev => prev.filter(x => x.id !== t.id)); setSelectedFurniture(null); setEditingText(null); }} />
+                                            <text x={boxW / 2 + 10} y={-t.fontSize} fontSize={10 / zoom} fill="#fff" textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>✕</text>
                                             <circle cx={boxW / 2 + 10} cy={-t.fontSize + 22} r={8 / zoom} fill="#4A90E2" stroke="#fff" strokeWidth={1 / zoom}
                                                 style={{ cursor: 'pointer' }}
-                                                onMouseDown={e => {
-                                                    e.stopPropagation();
-                                                    setTexts(prev => prev.map(x => x.id === t.id ? { ...x, fontSize: Math.min(100, x.fontSize + 2) } : x));
-                                                }} />
-                                            <text x={boxW / 2 + 10} y={-t.fontSize + 22.5 / zoom} fontSize={8 / zoom} fill="#fff" textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>A+</text>
-
-                                            {/* A- handle */}
+                                                onMouseDown={e => { e.stopPropagation(); setTexts(prev => prev.map(x => x.id === t.id ? { ...x, fontSize: Math.min(100, x.fontSize + 2) } : x)); }} />
+                                            <text x={boxW / 2 + 10} y={-t.fontSize + 22} fontSize={8 / zoom} fill="#fff" textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>A+</text>
                                             <circle cx={boxW / 2 + 10} cy={-t.fontSize + 44} r={8 / zoom} fill="#4A90E2" stroke="#fff" strokeWidth={1 / zoom}
                                                 style={{ cursor: 'pointer' }}
-                                                onMouseDown={e => {
-                                                    e.stopPropagation();
-                                                    setTexts(prev => prev.map(x => x.id === t.id ? { ...x, fontSize: Math.max(8, x.fontSize - 2) } : x));
-                                                }} />
-                                            <text x={boxW / 2 + 10} y={-t.fontSize + 44.5 / zoom} fontSize={8 / zoom} fill="#fff" textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>A-</text>
+                                                onMouseDown={e => { e.stopPropagation(); setTexts(prev => prev.map(x => x.id === t.id ? { ...x, fontSize: Math.max(8, x.fontSize - 2) } : x)); }} />
+                                            <text x={boxW / 2 + 10} y={-t.fontSize + 44} fontSize={8 / zoom} fill="#fff" textAnchor="middle" dominantBaseline="middle" style={{ pointerEvents: 'none' }}>A-</text>
                                         </>}
                                     </g>
                                 );
@@ -1136,23 +1087,19 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                         return (
                             <div className="wall-dim-popup"
                                 style={{ left: mx, top: my, minWidth: 200, transform: `translate(-50%, -50%) rotate(${t.rotation}deg)` }}
-                                onMouseDown={e => e.stopPropagation()}
-                            >
+                                onMouseDown={e => e.stopPropagation()}>
                                 <input
                                     style={{ width: "100%", textAlign: "center", fontSize: t.fontSize * zoom, fontFamily: "var(--font-primary)", fontWeight: 500 }}
                                     value={t.text}
                                     onChange={e => setTexts(prev => prev.map(textItem => textItem.id === editingText ? { ...textItem, text: e.target.value } : textItem))}
                                     autoFocus
-                                    onKeyDown={e => {
-                                        if (e.key === "Enter") setEditingText(null);
-                                        e.stopPropagation(); // prevent window keydown bindings
-                                    }}
+                                    onKeyDown={e => { if (e.key === "Enter") setEditingText(null); e.stopPropagation(); }}
                                 />
                             </div>
                         );
                     })()}
                 </div>
-            </div >
-        </div >
+            </div>
+        </div>
     );
 }

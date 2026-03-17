@@ -307,16 +307,18 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
 
                 {/* -- Shakti Chakra Overlay -- */}
                 {layers.sectors && isPhaseAtLeast(phase, Phase.ANALYZED) && centroid && (
-                    <ShaktiChakra
-                        centroid={centroid}
-                        scale={state.chakraScale}
-                        rotation={state.chakraRotation}
-                        selectedDirection={state.selectedDirection}
-                        hoveredDirection={state.hoveredDirection}
-                        entranceDegree={state.pointerDegree}
-                        onDirectionClick={(dir) => dispatch({ type: "SET_SELECTED_DIRECTION", direction: dir })}
-                        onDirectionHover={(dir) => dispatch({ type: "SET_HOVERED_DIRECTION", direction: dir })}
-                    />
+                    <g className="shakti-chakra-layer">
+                        <ShaktiChakra
+                            centroid={centroid}
+                            scale={state.chakraScale}
+                            rotation={state.chakraRotation}
+                            selectedDirection={state.selectedDirection}
+                            hoveredDirection={state.hoveredDirection}
+                            entranceDegree={state.pointerDegree}
+                            onDirectionClick={(dir) => dispatch({ type: "SET_SELECTED_DIRECTION", direction: dir })}
+                            onDirectionHover={(dir) => dispatch({ type: "SET_HOVERED_DIRECTION", direction: dir })}
+                        />
+                    </g>
                 )}
 
                 {/* -- Marma Points Layer -- */}
@@ -324,16 +326,18 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     MarmaLayer no longer recomputes — it renders exactly what the reducer stored,
                     so the visual layer and collision detection (PLACE_ITEM) are always in sync. */}
                 {layers.marma && isPhaseAtLeast(phase, Phase.ANALYZED) && state.marmaPoints.length > 0 && (
-                    <MarmaLayer
-                        axes={state.marmaAxes}
-                        marmaPoints={state.marmaPoints}
-                        visible={true}
-                    />
+                    <g className="marma-layer">
+                        <MarmaLayer
+                            axes={state.marmaAxes}
+                            marmaPoints={state.marmaPoints}
+                            visible={true}
+                        />
+                    </g>
                 )}
 
                 {/* -- Zone fills (from real overlap clipped polygons) -- */}
                 {layers.zones && isPhaseAtLeast(phase, Phase.ANALYZED) && sectorOverlaps.length > 0 && (
-                    <g style={{ pointerEvents: "none" }}>
+                    <g className="zone-fills-layer" style={{ pointerEvents: "none" }}>
                         {sectorOverlaps.map((ov, i) => {
                             if (ov.clippedPolygon.length < 3) return null;
                             const isHovered = hoveredDirection === ov.direction;

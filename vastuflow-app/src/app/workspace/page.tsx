@@ -76,172 +76,52 @@ export default function WorkspacePage() {
     const handleDownloadReport = useCallback(async () => {
         if (!isPhaseAtLeast(state.phase, Phase.ANALYZED)) return;
 
-        // Capture the SVG canvas as a PNG data URL
-        let canvasImageUrl: string | null = null;
-        let canvasImageAspect: number | undefined;
-        try {
-            const svgEl = document.querySelector<SVGSVGElement>(".canvas-area svg");
-            if (svgEl) {
-                let minX = 0; let minY = 0; let maxX = 840; let maxY = 800;
-                if (state.image) {
-                    // Start bounds based on rotated image corners
-                    const cx = 420; const cy = 400;
-                    const r = state.rotation ? state.rotation * Math.PI / 180 : 0;
-                    const corners = [
-                        { x: 0, y: 0 }, { x: 840, y: 0 },
-                        { x: 840, y: 800 }, { x: 0, y: 800 }
-                    ].map(p => {
-                        const dx = p.x - cx;
-                        const dy = p.y - cy;
-                        return { x: cx + dx * Math.cos(r) - dy * Math.sin(r), y: cy + dx * Math.sin(r) + dy * Math.cos(r) };
-                    });
-
-                    minX = Math.min(...corners.map(c => c.x));
-                    minY = Math.min(...corners.map(c => c.y));
-                    maxX = Math.max(...corners.map(c => c.x));
-                    maxY = Math.max(...corners.map(c => c.y));
-                }
-
-                if (state.centroid && isPhaseAtLeast(state.phase, Phase.ANALYZED)) {
-                    const chakraRadius = 400 * (state.chakraScale ?? 1.0);
-                    minX = Math.min(minX, state.centroid.x - chakraRadius);
-                    minY = Math.min(minY, state.centroid.y - chakraRadius);
-                    maxX = Math.max(maxX, state.centroid.x + chakraRadius);
-                    maxY = Math.max(maxY, state.centroid.y + chakraRadius);
-                }
-
-                if (state.polygon && state.polygon.length > 0) {
-                    const pxs = state.polygon.map(p => p.x);
-                    const pys = state.polygon.map(p => p.y);
-                    minX = Math.min(minX, ...pxs);
-                    minY = Math.min(minY, ...pys);
-                    maxX = Math.max(maxX, ...pxs);
-                    maxY = Math.max(maxY, ...pys);
-                }
-
-                // Add padding
-                minX -= 40;
-                minY -= 40;
-                maxX += 40;
-                maxY += 40;
-
-                const svgW = maxX - minX;
-                const svgH = maxY - minY;
-                canvasImageAspect = svgW > 0 ? svgH / svgW : (800 / 840);
-
-                // Clone for a clean export
-                const clone = svgEl.cloneNode(true) as SVGSVGElement;
-                clone.setAttribute("viewBox", `${minX} ${minY} ${svgW} ${svgH}`);
-                clone.setAttribute("width", String(svgW));
-                clone.setAttribute("height", String(svgH));
-
-                // Inject CSS variables so colors resolve in the Blob
-                const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
-                style.textContent = `
-                    :root {
-                        --base: #FFFEF9;
-                        --surface: #FCFAF5;
-                        --surface-2: #F6F4EE;
-                        --text-primary: #1C1A15;
-                        --text-secondary: #524F45;
-                        --text-tertiary: #8C8775;
-                        --accent-gold: #B8860B;
-                        --accent-gold-light: #D4A017;
-                        --good: #3D7A4F;
-                        --warning: #B87333;
-                        --critical: #A83232;
-                        --border: #E2DFD8;
-                        --font-mono: 'DM Mono', monospace;
-                    }
-                    svg { background: #faf9f6; }
-                `;
-                clone.prepend(style);
-
-                // Convert blob URLs in <image> tags to Data URIs so they export cleanly
-                const images = clone.querySelectorAll("image");
-                for (let i = 0; i < images.length; i++) {
-                    const img = images[i];
-                    const href = img.getAttribute("href") || img.getAttribute("xlink:href");
-                    if (href && href.startsWith("blob:")) {
-                        try {
-                            const response = await fetch(href);
-                            const blob = await response.blob();
-                            const reader = new FileReader();
-                            const dataUrl = await new Promise<string>((resolve, reject) => {
-                                reader.onloadend = () => resolve(reader.result as string);
-                                reader.onerror = reject;
-                                reader.readAsDataURL(blob);
-                            });
-                            img.setAttribute("href", dataUrl);
-                        } catch (e) {
-                            console.warn("Could not convert blob URL to data URI for export:", e);
-                        }
-                    }
-                }
-
-                const svgBlob = new Blob(
-                    [`<?xml version="1.0" encoding="UTF-8"?>`, clone.outerHTML],
-                    { type: "image/svg+xml;charset=utf-8" }
-                );
-                const url = URL.createObjectURL(svgBlob);
-                canvasImageUrl = await new Promise<string>((resolve, reject) => {
-                    const img = new window.Image();
-                    img.onload = () => {
-                        const exportScale = 2; // 2× for quality
-                        const offscreen = document.createElement("canvas");
-                        offscreen.width = svgW * exportScale;
-                        offscreen.height = svgH * exportScale;
-                        const ctx = offscreen.getContext("2d")!;
-                        ctx.fillStyle = "#faf9f6";
-                        ctx.fillRect(0, 0, offscreen.width, offscreen.height);
-                        ctx.drawImage(img, 0, 0, offscreen.width, offscreen.height);
-                        URL.revokeObjectURL(url);
-                        resolve(offscreen.toDataURL("image/png"));
-                    };
-                    img.onerror = reject;
-                    img.src = url;
-                });
-            }
-        } catch (err) {
-            console.warn("Canvas snapshot failed, continuing without map:", err);
+        const svgEl = document.querySelector<SVGSVGElement>(".canvas-area svg");
+        if (!svgEl) {
+            console.warn("Could not find SVG element to generate report.");
+            return;
         }
 
-        generateReport({
-            floorPlan: {
-                name: state.imageName ?? "Untitled Project",
-                type: "Residential",
-                location: "—",
-                fileName: state.imageName ?? "project",
-                fileSize: state.imageSize ?? "—",
-                imageUrl: state.image,
-            },
-            analysis: {
-                overallScore: state.overallScore,
-                evaluations: state.zoneResults.map(z => ({
-                    direction: z.direction,
-                    roomType: "other" as const,
-                    roomLabel: `${z.direction} Zone`,
-                    score: z.score,
-                    areaPercent: z.areaPercent, // Added
-                    status: z.status,
-                    remark: z.remark,
-                })),
-                placedItems: state.placedItems.map(item => ({
-                    id: item.id,
-                    type: item.type,
-                    zone: item.zone,
-                    status: item.status,
-                    reasoning: item.remedy?.reasoning,
-                    fix: item.remedy?.fix,
-                })),
-                sectorOverlaps: state.sectorOverlaps, // Added for the graph
-                deviationCount: state.deviationCount,
-                summary: state.analysisSummary,
-            },
-            generatedAt: new Date().toLocaleString(),
-            canvasImageUrl,
-            canvasImageAspect,
-        });
+        try {
+            await generateReport({
+                floorPlan: {
+                    name: state.imageName ?? "Untitled Project",
+                    type: "Residential",
+                    location: "—",
+                    fileName: state.imageName ?? "project",
+                    fileSize: state.imageSize ?? "—",
+                    imageUrl: state.image,
+                },
+                analysis: {
+                    overallScore: state.overallScore,
+                    evaluations: state.zoneResults.map(z => ({
+                        direction: z.direction,
+                        roomType: "other" as const,
+                        roomLabel: `${z.direction} Zone`,
+                        score: z.score,
+                        areaPercent: z.areaPercent,
+                        status: z.status,
+                        remark: z.remark,
+                    })),
+                    placedItems: state.placedItems.map(item => ({
+                        id: item.id,
+                        type: item.type,
+                        zone: item.zone,
+                        status: item.status,
+                        reasoning: item.remedy?.reasoning,
+                        fix: item.remedy?.fix,
+                    })),
+                    sectorOverlaps: state.sectorOverlaps,
+                    deviationCount: state.deviationCount,
+                    summary: state.analysisSummary,
+                },
+                generatedAt: new Date().toLocaleString(),
+                svgElement: svgEl,
+            });
+        } catch (err) {
+            console.error("Failed to generate PDF report:", err);
+            alert("Failed to generate PDF report. Please check the console for details.");
+        }
     }, [state]);
 
     // ── JSON Export ──
