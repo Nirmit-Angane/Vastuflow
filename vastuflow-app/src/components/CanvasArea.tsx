@@ -8,6 +8,7 @@ import { DIRECTION_COLORS, Point } from "@/core/geometry/types";
 import { MapFurniture, MapText, MapWall } from "@/components/map-builder/MapBuilder";
 import ShaktiChakra from "./ShaktiChakra";
 import MarmaLayer from "./MarmaLayer";
+import DevtasLayer from "./DevtasLayer";
 
 const FURN_ICONS: Record<string, (w: number, h: number) => React.ReactNode> = {
     bed: (w, h) => (<>
@@ -368,6 +369,11 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                     </g>
                 )}
 
+                {/* -- Devta Zones -- */}
+                {layers.devtas && isPhaseAtLeast(phase, Phase.ANALYZED) && state.devtaZones && state.devtaZones.length > 0 && (
+                    <DevtasLayer zones={state.devtaZones} visible={true} showNames={layers.labels} />
+                )}
+
                 {/* -- Traced polygon -- */}
                 {layers.trace && polygon.length > 0 && (
                     <>
@@ -615,6 +621,7 @@ const LAYER_COLORS: Record<string, string> = {
     centroid: "#8B6914",
     sectors: "#7A8CA0",
     zones: "#3D7A4F",
+    devtas: "#4CAF50",
     marma: "#16a34a",
     labels: "#B0AB9E",
 };

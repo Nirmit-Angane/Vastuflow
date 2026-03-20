@@ -4,13 +4,13 @@
 // ═══════════════════════════════════════════════════════
 
 import { Phase } from "./phase";
-import { Point, Sector, SectorOverlap, ZoneResult, DevtaZone } from "@/core/geometry/types";
+import { Point, Sector, SectorOverlap, ZoneResult } from "@/core/geometry/types";
 import {
     computePolygonArea, computeCentroid, ensureCCW, isSimplePolygon
 } from "@/core/geometry/polygon";
 import { getDirectionForPoint, computeCoveringRadius } from "@/core/geometry/sectors";
 import { computeSectorOverlaps, computeZoneScores, computeOverallScore } from "@/core/geometry/overlap";
-import { compute32Devtas, getDevtaForPoint } from "@/core/geometry/devtas";
+import { computeDevtaMandala, getDevtaForPoint, DevtaCell } from "@/core/geometry/devtas";
 import { VastuItem, PlacementStatus, VASTU_PLACEMENT_RULES, DEVTA_PLACEMENT_OVERRIDES } from "@/core/geometry/vastu-rules";
 import { MapFurniture, MapText, MapWall } from "@/components/map-builder/MapBuilder";
 import { generateMarmaPoints, MarmaPoint, MarmaAxis } from "@/core/geometry/marmaPoints";
@@ -59,7 +59,7 @@ export interface ProjectState {
     centroid: Point | null;
     sectors: Sector[];
     sectorOverlaps: SectorOverlap[];
-    devtaZones: DevtaZone[];
+    devtaZones: DevtaCell[];
     chakraScale: number;          // 0.5 to 2.0 (default 1.0)
     chakraRotation: number;       // 0 to 360 (default 0)
     // Analysis
@@ -127,6 +127,7 @@ export function createEmptyProject(): ProjectState {
             centroid: true,
             sectors: false,
             zones: false,
+            devtas: false,
             labels: true,
             marma: false,
         },
@@ -352,6 +353,7 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
                     centroid: true,
                     sectors: true,
                     zones: true,
+                    devtas: true,
                 },
             };
         }
@@ -588,7 +590,7 @@ function recalculateAnalysis(state: ProjectState): ProjectState {
     const zoneResults = computeZoneScores(overlaps, state.scaleRatio);
 
     // Compute Devta geometries
-    const devtas = compute32Devtas(centroid, computeCoveringRadius(centroid, ccwPoly) * state.chakraScale, ccwPoly, state.chakraRotation);
+    const devtas = computeDevtaMandala(centroid, ccwPoly, state.chakraRotation);
 
     const overallScore = computeOverallScore(zoneResults);
     const deviationCount = zoneResults.filter(z => z.status !== "good").length;
