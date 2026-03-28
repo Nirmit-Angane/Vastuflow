@@ -172,14 +172,14 @@ export default function AnalysisPanel({ state, dispatch, onDownloadReport, onExp
                         {placedItems.length > 0 ? (
                             placedItems.map((item) => {
                                 const conf = STATUS_CONFIG[item.status];
-                                const isBad = item.status === "bad" || item.status === "worst";
-                                const isExpanded = expandedRemedyId === item.id;
+                                const isBad = item.status === "bad" || item.status === "worst" || item.type === "Custom";
+                                const isExpanded = expandedRemedyId === item.id || (item.type === "Custom" && item.remedy?.loading);
 
                                 return (
                                     <div key={item.id} style={{ display: "flex", flexDirection: "column", borderBottom: "1px solid var(--border)" }}>
                                         <div className="zone-row" style={{ gridTemplateColumns: "1fr 1fr 40px", padding: "8px 12px", alignItems: "center", borderBottom: "none" }}>
                                             <div style={{ fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
-                                                {item.type}
+                                                {item.type === "Custom" ? (item.customName || "Custom Item") : item.type}
                                                 {isBad && (
                                                     <button
                                                         onClick={() => {

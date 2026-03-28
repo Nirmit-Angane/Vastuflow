@@ -140,6 +140,39 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
     const vbX = (BASE_W - vbW) / 2;
     const vbY = (BASE_H - vbH) / 2;
 
+    // Handle AI evaluation for custom items
+    useEffect(() => {
+        const loadingCustomItems = state.placedItems.filter(item =>
+            item.type === "Custom" &&
+            item.remedy?.loading === true
+        );
+
+        loadingCustomItems.forEach(async (item) => {
+            try {
+                const res = await fetch("/api/evaluate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        itemName: item.customName,
+                        zone: item.zone
+                    })
+                });
+                const data = await res.json();
+                if (data.status) {
+                    dispatch({
+                        type: "UPDATE_ITEM_EVALUATION",
+                        id: item.id,
+                        status: data.status,
+                        reasoning: data.reasoning,
+                        fix: data.fix
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to evaluate custom item:", err);
+            }
+        });
+    }, [state.placedItems, dispatch]);
+
     // Convert client coords ? SVG viewBox coords
     const clientToSVG = (cx: number, cy: number): Point | null => {
         const svg = svgRef.current;
@@ -307,8 +340,8 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                 )}
 
                 {/* -- Shakti Chakra Overlay -- */}
-                {layers.sectors && isPhaseAtLeast(phase, Phase.ANALYZED) && centroid && (
-                    <g className="shakti-chakra-layer">
+                {isPhaseAtLeast(phase, Phase.ANALYZED) && centroid && (
+                    <g className="shakti-chakra-layer" style={{ visibility: layers.sectors ? "visible" : "hidden" }}>
                         <ShaktiChakra
                             centroid={centroid}
                             scale={state.chakraScale}
@@ -326,8 +359,8 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                 {/* FIX (Bug 1): pass axes + marmaPoints from state instead of polygon + chakraRotation.
                     MarmaLayer no longer recomputes — it renders exactly what the reducer stored,
                     so the visual layer and collision detection (PLACE_ITEM) are always in sync. */}
-                {layers.marma && isPhaseAtLeast(phase, Phase.ANALYZED) && state.marmaPoints.length > 0 && (
-                    <g className="marma-layer">
+                {isPhaseAtLeast(phase, Phase.ANALYZED) && state.marmaPoints.length > 0 && (
+                    <g className="marma-layer" style={{ visibility: layers.marma ? "visible" : "hidden" }}>
                         <MarmaLayer
                             axes={state.marmaAxes}
                             marmaPoints={state.marmaPoints}
@@ -337,8 +370,8 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                 )}
 
                 {/* -- Zone fills (from real overlap clipped polygons) -- */}
-                {layers.zones && isPhaseAtLeast(phase, Phase.ANALYZED) && sectorOverlaps.length > 0 && (
-                    <g className="zone-fills-layer" style={{ pointerEvents: "none" }}>
+                {isPhaseAtLeast(phase, Phase.ANALYZED) && sectorOverlaps.length > 0 && (
+                    <g className="zone-fills-layer" style={{ pointerEvents: "none", visibility: layers.zones ? "visible" : "hidden" }}>
                         {sectorOverlaps.map((ov, i) => {
                             if (ov.clippedPolygon.length < 3) return null;
                             const isHovered = hoveredDirection === ov.direction;
@@ -370,8 +403,10 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                 )}
 
                 {/* -- Devta Zones -- */}
-                {layers.devtas && isPhaseAtLeast(phase, Phase.ANALYZED) && state.devtaZones && state.devtaZones.length > 0 && (
-                    <DevtasLayer zones={state.devtaZones} visible={true} showNames={layers.labels} />
+                {isPhaseAtLeast(phase, Phase.ANALYZED) && state.devtaZones && state.devtaZones.length > 0 && (
+                    <g className="devtas-layer" style={{ visibility: layers.devtas ? "visible" : "hidden" }}>
+                        <DevtasLayer zones={state.devtaZones} visible={true} showNames={layers.labels} />
+                    </g>
                 )}
 
                 {/* -- Traced polygon -- */}

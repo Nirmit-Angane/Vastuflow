@@ -22,6 +22,7 @@ export interface PlacedItem {
     zone: string;
     devta?: string;
     status: PlacementStatus;
+    customName?: string;
     remedy?: {
         loading?: boolean;
         error?: string;
@@ -81,6 +82,7 @@ export interface ProjectState {
     // Placement Analysis
     placedItems: PlacedItem[];
     activePlacement: VastuItem | null;
+    customPlacementName: string;
     activeTab: "overlay" | "items";
     // Map Builder data
     mapWalls: MapWall[];
@@ -89,6 +91,13 @@ export interface ProjectState {
     // Marma Points
     marmaPoints: MarmaPoint[];
     marmaAxes: MarmaAxis[];
+    // Project Info
+    projectInfo: {
+        clientName: string;
+        propertyType: string;
+        address: string;
+        consultantName: string;
+    };
 }
 
 export function createEmptyProject(): ProjectState {
@@ -139,12 +148,19 @@ export function createEmptyProject(): ProjectState {
         selectedVertex: null,
         placedItems: [],
         activePlacement: null,
+        customPlacementName: "",
         activeTab: "overlay",
         mapWalls: [],
         mapFurniture: [],
         mapTexts: [],
         marmaPoints: [],
         marmaAxes: [],
+        projectInfo: {
+            clientName: "",
+            propertyType: "Residential",
+            address: "",
+            consultantName: "",
+        },
     };
 }
 
@@ -182,7 +198,10 @@ export type ProjectAction =
     | { type: "FETCH_REMEDY_START"; id: string }
     | { type: "FETCH_REMEDY_SUCCESS"; id: string; reasoning: string; fix: string }
     | { type: "FETCH_REMEDY_ERROR"; id: string; error: string }
+    | { type: "SET_CUSTOM_PLACEMENT_NAME"; name: string }
+    | { type: "UPDATE_ITEM_EVALUATION"; id: string; status: PlacementStatus; reasoning: string; fix: string }
     | { type: "SET_ACTIVE_TAB"; tab: "overlay" | "items" }
+    | { type: "SET_PROJECT_INFO"; info: ProjectState["projectInfo"] }
     | { type: "SKIP_TO_TRACE"; walls?: MapWall[]; furniture?: MapFurniture[]; texts?: MapText[] }
     | { type: "RESET" };
 
@@ -513,7 +532,9 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
                 point: action.point,
                 zone: dir,
                 devta: devtaName,
-                status
+                status,
+                customName: state.activePlacement === "Custom" ? state.customPlacementName : undefined,
+                remedy: state.activePlacement === "Custom" ? { loading: true } : undefined
             };
 
             return {
@@ -563,8 +584,27 @@ export function projectReducer(state: ProjectState, action: ProjectAction): Proj
             };
         }
 
+        case "SET_CUSTOM_PLACEMENT_NAME": {
+            return { ...state, customPlacementName: action.name };
+        }
+        
+        case "UPDATE_ITEM_EVALUATION": {
+            return {
+                ...state,
+                placedItems: state.placedItems.map(item =>
+                    item.id === action.id
+                        ? { ...item, status: action.status, remedy: { loading: false, reasoning: action.reasoning, fix: action.fix } }
+                        : item
+                )
+            };
+        }
+
         case "SET_ACTIVE_TAB": {
             return { ...state, activeTab: action.tab };
+        }
+
+        case "SET_PROJECT_INFO": {
+            return { ...state, projectInfo: action.info };
         }
 
         case "RESET": {

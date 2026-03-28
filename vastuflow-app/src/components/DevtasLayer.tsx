@@ -16,7 +16,7 @@ export default function DevtasLayer({ zones, visible, showNames = true }: Devtas
 
     return (
         <g className="devtas-layer pointer-events-auto">
-            {zones.map((cell) => {
+            {zones.map((cell, idx) => {
                 const isOuter = cell.type === 'outer';
                 let labelX = cell.textPos?.x || 0;
                 let labelY = cell.textPos?.y || 0;
@@ -26,7 +26,7 @@ export default function DevtasLayer({ zones, visible, showNames = true }: Devtas
                     const dy = cell.textPos.y - layoutCentroid.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist > 0) {
-                        const pushOut = 80; // Push text 80px outside its centroid
+                        const pushOut = 80 + (idx % 2 === 0 ? 0 : 50); // Stagger text distance
                         labelX += (dx / dist) * pushOut;
                         labelY += (dy / dist) * pushOut;
                     }
@@ -40,10 +40,10 @@ export default function DevtasLayer({ zones, visible, showNames = true }: Devtas
                                 key={`${cell.id}-poly-${idx}`}
                                 points={poly.map(p => `${p.x},${p.y}`).join(" ")}
                                 fill={cell.color}
-                                stroke="rgba(0, 0, 0, 0.5)"
-                                strokeWidth={1}
-                                opacity={0.6}
-                                className="transition-opacity duration-200 group-hover:opacity-80 group-hover:stroke-black group-hover:stroke-2"
+                                fillOpacity={0.8}
+                                stroke="#111"
+                                strokeWidth={2}
+                                className="transition-opacity duration-200 group-hover:fill-opacity-100"
                             />
                         ))}
                         
@@ -52,11 +52,11 @@ export default function DevtasLayer({ zones, visible, showNames = true }: Devtas
                             <g>
                                 {isOuter && (
                                     <>
-                                        <circle cx={cell.textPos.x} cy={cell.textPos.y} r={3} fill="rgba(0, 0, 255, 0.4)" />
+                                        <circle cx={cell.textPos.x} cy={cell.textPos.y} r={3} fill="#222" />
                                         <line 
                                             x1={cell.textPos.x} y1={cell.textPos.y} 
                                             x2={labelX} y2={labelY} 
-                                            stroke="rgba(0, 0, 255, 0.4)" 
+                                            stroke="#222" 
                                             strokeWidth="1" 
                                         />
                                     </>
@@ -66,11 +66,11 @@ export default function DevtasLayer({ zones, visible, showNames = true }: Devtas
                                     y={labelY}
                                     textAnchor="middle"
                                     alignmentBaseline="middle"
-                                    fontSize={cell.type === 'brahmasthan' ? "12" : "10"}
+                                    fontSize={cell.type === 'brahmasthan' ? "14" : "11"}
                                     fontWeight="bold"
-                                    fill="#222"
+                                    fill="#000"
                                     pointerEvents="none"
-                                    className="drop-shadow-sm select-none"
+                                    className="drop-shadow-md select-none"
                                 >
                                     <tspan x={labelX} dy="-0.5em">{cell.devta}</tspan>
                                     {cell.subtext && cell.subtext.split('\n').map((lineText, i) => (
@@ -78,9 +78,9 @@ export default function DevtasLayer({ zones, visible, showNames = true }: Devtas
                                             key={i} 
                                             x={labelX} 
                                             dy="1.2em" 
-                                            fontSize="8" 
-                                            fontWeight="normal"
-                                            fill="#444"
+                                            fontSize="9" 
+                                            fontWeight="600"
+                                            fill="#222"
                                         >
                                             {lineText}
                                         </tspan>

@@ -12,58 +12,58 @@ export type DevtaCell = {
     type: "brahmasthan" | "inner" | "outer";
 };
 
-type DevtaInfo = { color: string; subtext: string };
+type DevtaInfo = { color: string; subtext?: string };
 const DEVTA_INFO: Record<string, DevtaInfo> = {
     // Center
-    "Brahmasthan": { color: "#fce5cd", subtext: "Kesar ka tikka\nRohini" }, // Gold/Yellow
+    "Brahmasthan": { color: "#ffe599", subtext: "Kesar ka tikka\nRohini" }, // Solid Yellow
 
     // Inner
-    "Bhudhar": { color: "#c9daf8", subtext: "Gehu ka Aata\nPoorva Ashadha" }, // Blue
-    "Aapha": { color: "#fce5cd", subtext: "Nariyal\n-" }, // Orange
-    "Aapaavastha": { color: "#d0e0e3", subtext: "Ghee\n-" }, // Cyan
-    "Aryama": { color: "#d9ead3", subtext: "Chocolate / Shakkar\nUttra Phalguni" }, // Green
-    "Savitra": { color: "#ead1dc", subtext: "Batasha Gheeshakker\nVishakha" }, // Pink
-    "Savita": { color: "#d9ead3", subtext: "Kheer/ Peda\nPoorva Phalguni" }, // Green
-    "Vivaswan": { color: "#f4cccc", subtext: "lit a Diya\nAshwini" }, // Red
-    "Indra": { color: "#d0e0e3", subtext: "Pilli sarso\n-" }, // Cyan
-    "Jaya": { color: "#ead1dc", subtext: "kali sarso\n-" }, // Pink
+    "Bhudhar": { color: "#9fc5e8", subtext: "Gehu ka Aata\nPoorva Ashadha" }, // Solid Blue
+    "Aapha": { color: "#f9cb9c", subtext: "Nariyal" }, // Orange
+    "Aapaavastha": { color: "#a2c4c9", subtext: "Ghee" }, // Cyan
+    "Aryama": { color: "#b6d7a8", subtext: "Chocolate / Shakkar\nUttra Phalguni" }, // Green
+    "Savitra": { color: "#d5a6bd", subtext: "Batasha Gheeshakker\nVishakha" }, // Pink
+    "Savita": { color: "#b6d7a8", subtext: "Kheer/ Peda\nPoorva Phalguni" }, // Green
+    "Vivaswan": { color: "#ea9999", subtext: "lit a Diya\nAshwini" }, // Red
+    "Indra": { color: "#a2c4c9", subtext: "Pilli sarso" }, // Cyan
+    "Jaya": { color: "#d5a6bd", subtext: "kali sarso" }, // Pink
     "Mitra": { color: "#d9d2e9", subtext: "Gud / Kheer\nAnuradha" }, // Grey
-    "Rajyakshma": { color: "#c9daf8", subtext: "Supari (Sabut)\nDhanishta" }, // Blue
-    "Rudra": { color: "#d9ead3", subtext: "Onion\nArdra" }, // Green
+    "Rajyakshma": { color: "#9fc5e8", subtext: "Supari (Sabut)\nDhanishta" }, // Blue
+    "Rudra": { color: "#b6d7a8", subtext: "Onion\nArdra" }, // Green
 
     // Outer
     "Roga": { color: "#cfe2f3", subtext: "Khopra / sukha nariyal\nSwati" },
     "Ahir": { color: "#cfe2f3", subtext: "Fresh fruits\nAslesha" },
-    "Mukhya": { color: "#cfe2f3", subtext: "Mango / wheat / Brinjal\n-" },
+    "Mukhya": { color: "#cfe2f3", subtext: "Mango / wheat / Brinjal" },
     "Bhallat": { color: "#cfe2f3", subtext: "Moong Daal\nUttra Bhadrapada" },
-    "Soma": { color: "#c9daf8", subtext: "Makhana / Butter\nMrigashira" },
-    "Bhujang": { color: "#d9d2e9", subtext: "Tulsi Patta\n-" },
+    "Soma": { color: "#9fc5e8", subtext: "Makhana / Butter\nMrigashira" },
+    "Bhujang": { color: "#d9d2e9", subtext: "Tulsi Patta" },
     "Aditi": { color: "#d9d2e9", subtext: "Puri and Kheer / Dhai\nPunarvasu" },
     "Diti": { color: "#d9d2e9", subtext: "Basi Khana\nPushya" },
-    "Shikhi": { color: "#d0e0e3", subtext: "Ghee ka Diya\nPushya" },
-    "Prajanya": { color: "#d0e0e3", subtext: "Makhana\n-" },
-    "Jayant": { color: "#d9ead3", subtext: "Chandan\n-" },
-    "Mahender": { color: "#d9ead3", subtext: "Panchamrit\n-" },
-    "Surya": { color: "#d9ead3", subtext: "Gud\nHast" },
-    "Satya": { color: "#d9ead3", subtext: "Wheat Ghee mixed\nUttarashad" },
-    "Bhrisha": { color: "#ead1dc", subtext: "Fish oil / Badam oil\nBharani" },
-    "Antriksh": { color: "#ead1dc", subtext: "Clove\n-" },
-    "Anil": { color: "#f4cccc", subtext: "Lal Chandan\nKrittika" },
-    "Pusha": { color: "#f4cccc", subtext: "Kheel\nRevati" },
-    "Vitasta": { color: "#f4cccc", subtext: "Chane\n-" },
-    "Grispatya": { color: "#f4cccc", subtext: "Wheat and honey mix\n-" },
-    "Yama": { color: "#f4cccc", subtext: "Paneer\n-" },
-    "Gandharav": { color: "#fce5cd", subtext: "Any beautiful designed f\n-" },
-    "Bhrigraj": { color: "#fff2cc", subtext: "Alcohol\nJyestha" },
+    "Shikhi": { color: "#a2c4c9", subtext: "Ghee ka Diya\nPushya" },
+    "Prajanya": { color: "#a2c4c9", subtext: "Makhana" },
+    "Jayant": { color: "#b6d7a8", subtext: "Chandan" },
+    "Mahender": { color: "#b6d7a8", subtext: "Panchamrit" },
+    "Surya": { color: "#b6d7a8", subtext: "Gud\nHast" },
+    "Satya": { color: "#b6d7a8", subtext: "Wheat Ghee mixed\nUttarashad" },
+    "Bhrisha": { color: "#d5a6bd", subtext: "Fish oil / Badam oil\nBharani" },
+    "Antriksh": { color: "#d5a6bd", subtext: "Clove" },
+    "Anil": { color: "#ea9999", subtext: "Lal Chandan\nKrittika" },
+    "Pusha": { color: "#ea9999", subtext: "Kheel\nRevati" },
+    "Vitasta": { color: "#ea9999", subtext: "Chane" },
+    "Grispatya": { color: "#ea9999", subtext: "Wheat and honey mix" },
+    "Yama": { color: "#ea9999", subtext: "Paneer" },
+    "Gandharav": { color: "#f9cb9c", subtext: "Any beautiful designed f" },
+    "Bhrigraj": { color: "#ffe599", subtext: "Alcohol\nJyestha" },
     "Mrighah": { color: "#d9d2e9", subtext: "Jaun\nChitra" },
     "Pitr": { color: "#d9d2e9", subtext: "Almounds\nMagha" },
     "Dauwarik": { color: "#d9d2e9", subtext: "Pani ka kalash / keel\nMoola" },
-    "Sugreev": { color: "#d9d2e9", subtext: "5 types grains\n-" },
-    "Pushpdant": { color: "#d9d2e9", subtext: "Jawar\n-" },
+    "Sugreev": { color: "#d9d2e9", subtext: "5 types grains" },
+    "Pushpdant": { color: "#d9d2e9", subtext: "Jawar" },
     "Varun": { color: "#d9d2e9", subtext: "Water\nShatabhisha" },
     "Asur": { color: "#d9d2e9", subtext: "Curd\nPoorva Bhadrapada" },
     "Shosha": { color: "#cfe2f3", subtext: "Paan / Supari\nShravana" },
-    "Papyakshma": { color: "#cfe2f3", subtext: "Onion\n-" }
+    "Papyakshma": { color: "#cfe2f3", subtext: "Onion" }
 };
 
 // Remove old colors since we don't need them

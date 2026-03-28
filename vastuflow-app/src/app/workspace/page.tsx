@@ -4,10 +4,12 @@ import { useReducer, useCallback, useRef, useState } from "react";
 import { createEmptyProject, projectReducer } from "@/state/project-state";
 import { Phase, isPhaseAtLeast } from "@/state/phase";
 import { generateReport } from "@/lib/pdf-export";
+import { computePolygonArea } from "@/core/geometry/polygon";
 import StepBar from "@/components/StepBar";
 import ToolPanel from "@/components/ToolPanel";
 import CanvasArea from "@/components/CanvasArea";
 import AnalysisPanel from "@/components/AnalysisPanel";
+import ProjectInfoModal from "@/components/ProjectInfoModal";
 import MapBuilder, { MapFurniture, MapText, MapWall } from "@/components/map-builder/MapBuilder";
 import "./workspace.css";
 
@@ -16,6 +18,7 @@ type WorkspaceMode = "select" | "analysis" | "map-builder";
 export default function WorkspacePage() {
     const [mode, setMode] = useState<WorkspaceMode>("select");
     const [state, dispatch] = useReducer(projectReducer, undefined, createEmptyProject);
+    const [showProjectModal, setShowProjectModal] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // ── File Upload ──
@@ -28,6 +31,7 @@ export default function WorkspacePage() {
                 const { pdfToImageUrl } = await import("@/lib/pdf-to-image");
                 const url = await pdfToImageUrl(file);
                 dispatch({ type: "LOAD_IMAGE", url, name: file.name, size: sizeMB });
+                setShowProjectModal(true);
             } catch (err) {
                 console.error("PDF conversion failed:", err);
                 alert("Failed to load PDF. Please try a different file or export as PNG.");
@@ -36,8 +40,10 @@ export default function WorkspacePage() {
             // Direct image
             const reader = new FileReader();
             reader.onload = (e) => {
-                if (e.target?.result) {
-                    dispatch({ type: "LOAD_IMAGE", url: e.target.result as string, name: file.name, size: sizeMB });
+                const url = e.target?.result;
+                if (url) {
+                    dispatch({ type: "LOAD_IMAGE", url: url as string, name: file.name, size: sizeMB });
+                    setShowProjectModal(true);
                 }
             };
             reader.readAsDataURL(file);
@@ -85,12 +91,14 @@ export default function WorkspacePage() {
         try {
             await generateReport({
                 floorPlan: {
-                    name: state.imageName ?? "Untitled Project",
-                    type: "Residential",
-                    location: "—",
-                    fileName: state.imageName ?? "project",
-                    fileSize: state.imageSize ?? "—",
+                    name: state.projectInfo.clientName || state.imageName || "Untitled Project",
+                    type: state.projectInfo.propertyType,
+                    location: state.projectInfo.address || "—",
+                    fileName: state.imageName || "project",
+                    fileSize: state.imageSize || "—",
                     imageUrl: state.image,
+                    clientName: state.projectInfo.clientName || state.imageName || "Project",
+                    consultantName: state.projectInfo.consultantName,
                 },
                 analysis: {
                     overallScore: state.overallScore,
@@ -106,6 +114,7 @@ export default function WorkspacePage() {
                     placedItems: state.placedItems.map(item => ({
                         id: item.id,
                         type: item.type,
+                        customName: item.customName,
                         zone: item.zone,
                         status: item.status,
                         reasoning: item.remedy?.reasoning,
@@ -114,6 +123,17 @@ export default function WorkspacePage() {
                     sectorOverlaps: state.sectorOverlaps,
                     deviationCount: state.deviationCount,
                     summary: state.analysisSummary,
+                    devtaAreas: state.devtaZones
+                        .filter(dz => dz.type === 'outer')
+                        .map(dz => {
+                            // Quick import inside or use full module path: we should've imported it. Let me just use the imported one.
+                            const areaPx = dz.polygons.reduce((acc, p) => acc + computePolygonArea(p), 0);
+                            return {
+                                name: dz.devta,
+                                type: dz.type,
+                                areaReal: areaPx * (state.scaleRatio * state.scaleRatio)
+                            };
+                        }),
                 },
                 generatedAt: new Date().toLocaleString(),
                 svgElement: svgEl,
@@ -314,6 +334,10 @@ export default function WorkspacePage() {
                     dispatch={dispatch}
                     onFileSelect={handleFileSelect}
                     onFileDrop={handleFileDrop}
+                    onStartTracing={() => {
+                        dispatch({ type: "START_TRACING" });
+                        setShowProjectModal(true);
+                    }}
                 />
                 <CanvasArea
                     state={state}
@@ -327,6 +351,13 @@ export default function WorkspacePage() {
                     onExportJSON={handleExportJSON}
                 />
             </div>
+
+            <ProjectInfoModal
+                isOpen={showProjectModal}
+                onClose={() => setShowProjectModal(false)}
+                onSave={(info) => dispatch({ type: "SET_PROJECT_INFO", info })}
+                currentInfo={state.projectInfo}
+            />
         </div>
     );
 }

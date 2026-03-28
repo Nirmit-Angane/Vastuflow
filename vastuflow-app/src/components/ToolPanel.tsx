@@ -9,9 +9,10 @@ interface ToolPanelProps {
     dispatch: React.Dispatch<ProjectAction>;
     onFileSelect?: () => void;
     onFileDrop?: (e: React.DragEvent) => void;
+    onStartTracing?: () => void;
 }
 
-export default function ToolPanel({ state, dispatch, onFileSelect, onFileDrop }: ToolPanelProps) {
+export default function ToolPanel({ state, dispatch, onFileSelect, onFileDrop, onStartTracing }: ToolPanelProps) {
     const { phase, imageName, imageSize, rotation, scaleRatio, polygon, polygonValid, validationError, activeTab } = state;
 
     return (
@@ -56,7 +57,7 @@ export default function ToolPanel({ state, dispatch, onFileSelect, onFileDrop }:
                 )}
                 {/* Skip to tracing */}
                 {phase === Phase.IDLE && (
-                    <button className="btn btn-ghost" onClick={() => dispatch({ type: "START_TRACING" })} style={{ marginTop: 8 }}>
+                    <button className="btn btn-ghost" onClick={onStartTracing} style={{ marginTop: 8 }}>
                         Skip → Start Tracing
                     </button>
                 )}

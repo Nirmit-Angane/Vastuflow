@@ -18,7 +18,18 @@ export type VastuItem =
     | "Family Photo"
     | "Overhead Watertank"
     | "Underground Watertank"
-    | "Entrance";
+    | "Entrance"
+    | "Fridge"
+    | "Inverter"
+    | "Dustbin"
+    | "Mirror"
+    | "Clock"
+    | "Generator"
+    | "AC"
+    | "Shoe Rack"
+    | "Stairs"
+    | "Balcony"
+    | "Custom";
 
 // Maps a given VastuItem to specific Devta fields that override the general 16-zone rule.
 // E.g., placing a Toilet mapping in "Yama" is worst, but in "Bhrisha" might be okay.
@@ -96,8 +107,37 @@ export const VASTU_PLACEMENT_RULES: Record<VastuItem, Partial<Record<VastuDirect
         NNW: "good", N: "good", NNE: "good", NE: "good", ENE: "good", E: "good", ESE: "bad", SE: "bad", SSE: "bad", S: "bad", SSW: "bad", SW: "bad", WSW: "bad", W: "bad", WNW: "bad", NW: "bad"
     },
     "Entrance": {
-        // We will default the entrance mapping logic to simple directional bad/good later based on specific entrance degrees
-        // A placeholder mapping for now since the chart mainly covers inner items:
         NNW: "bad", N: "good", NNE: "best", NE: "bad", ENE: "best", E: "good", ESE: "bad", SE: "bad", SSE: "bad", S: "best", SSW: "bad", SW: "worst", WSW: "bad", W: "best", WNW: "bad", NW: "good"
-    }
+    },
+    "Fridge": {
+        NNW: "good", N: "bad", NNE: "bad", NE: "worst", ENE: "bad", E: "bad", ESE: "good", SE: "good", SSE: "good", S: "good", SSW: "bad", SW: "bad", WSW: "good", W: "good", WNW: "good", NW: "good"
+    },
+    "Inverter": {
+        NNW: "good", N: "bad", NNE: "bad", NE: "worst", ENE: "bad", E: "bad", ESE: "good", SE: "best", SSE: "good", S: "good", SSW: "bad", SW: "bad", WSW: "bad", W: "bad", WNW: "good", NW: "best"
+    },
+    "Dustbin": {
+        NNW: "bad", N: "bad", NNE: "bad", NE: "worst", ENE: "bad", E: "bad", ESE: "best", SE: "bad", SSE: "bad", S: "bad", SSW: "best", SW: "bad", WSW: "bad", W: "bad", WNW: "best", NW: "bad"
+    },
+    "Mirror": {
+        NNW: "good", N: "best", NNE: "best", NE: "best", ENE: "best", E: "best", ESE: "bad", SE: "bad", SSE: "bad", S: "bad", SSW: "bad", SW: "bad", WSW: "bad", W: "bad", WNW: "bad", NW: "good"
+    },
+    "Clock": {
+        NNW: "good", N: "best", NNE: "best", NE: "best", ENE: "best", E: "best", ESE: "good", SE: "good", SSE: "good", S: "good", SSW: "bad", SW: "bad", WSW: "bad", W: "bad", WNW: "good", NW: "good"
+    },
+    "Generator": {
+        NNW: "good", N: "bad", NNE: "bad", NE: "worst", ENE: "bad", E: "bad", ESE: "good", SE: "best", SSE: "good", S: "good", SSW: "bad", SW: "bad", WSW: "bad", W: "bad", WNW: "good", NW: "best"
+    },
+    "AC": {
+        NNW: "best", N: "good", NNE: "bad", NE: "bad", ENE: "bad", E: "bad", ESE: "good", SE: "good", SSE: "good", S: "good", SSW: "bad", SW: "bad", WSW: "good", W: "good", WNW: "good", NW: "best"
+    },
+    "Shoe Rack": {
+        NNW: "good", N: "bad", NNE: "bad", NE: "worst", ENE: "bad", E: "bad", ESE: "good", SE: "bad", SSE: "bad", S: "bad", SSW: "best", SW: "bad", WSW: "bad", W: "bad", WNW: "best", NW: "good"
+    },
+    "Stairs": {
+        NNW: "bad", N: "bad", NNE: "bad", NE: "worst", ENE: "bad", E: "bad", ESE: "bad", SE: "bad", SSE: "good", S: "best", SSW: "best", SW: "best", WSW: "best", W: "best", WNW: "bad", NW: "bad"
+    },
+    "Balcony": {
+        NNW: "good", N: "best", NNE: "best", NE: "best", ENE: "best", E: "best", ESE: "bad", SE: "bad", SSE: "bad", S: "bad", SSW: "bad", SW: "bad", WSW: "bad", W: "bad", WNW: "bad", NW: "good"
+    },
+    "Custom": {}
 };

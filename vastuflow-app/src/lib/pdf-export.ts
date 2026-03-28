@@ -8,6 +8,8 @@ export interface ReportFloorPlan {
     fileName: string;
     fileSize: string;
     imageUrl: string | null;
+    clientName: string;
+    consultantName: string;
 }
 
 export interface ReportEvaluation {
@@ -23,6 +25,7 @@ export interface ReportEvaluation {
 export interface ReportPlacedItem {
     id: string;
     type: string;
+    customName?: string;
     zone: string;
     devta?: string;
     status: "best" | "good" | "bad" | "worst";
@@ -38,6 +41,7 @@ export interface ReportAnalysis {
     deviationCount: number;
     summary: string;
     zoneResults?: Array<{ direction: string; areaReal: number }>;
+    devtaAreas?: Array<{ name: string; type: string; areaReal: number }>;
 }
 
 export interface ReportData {
@@ -54,7 +58,8 @@ async function svgToImage(originalSvg: SVGSVGElement, visibleLayers: string[]): 
     // Default config to hide things not specifically requested
     const allLayers = [
         "bg-image-layer", "trace-layer", "map-walls-layer", "map-furniture-layer", 
-        "map-texts-layer", "shakti-chakra-layer", "marma-layer", "zone-fills-layer"
+        "map-texts-layer", "shakti-chakra-layer", "marma-layer", "zone-fills-layer", "devtas-layer",
+        "placed-items"
     ];
 
     allLayers.forEach(layerClass => {
@@ -93,6 +98,35 @@ async function svgToImage(originalSvg: SVGSVGElement, visibleLayers: string[]): 
             p.setAttribute('stroke-opacity', '1');
         });
     }
+
+    // Inject required CSS variables into the SVG so that styles using var(--xxx) resolve in the rasterized Image.
+    const styleDef = document.createElementNS("http://www.w3.org/2000/svg", "style");
+    styleDef.textContent = `
+        :root {
+            --base: #FAFAF8;
+            --surface: #FFFFFF;
+            --surface-2: #F5F4F0;
+            --surface-3: #EEECEA;
+            --border: #E2DFD8;
+            --border-bright: #CCC9BF;
+            --text-primary: #1C1A15;
+            --text-secondary: #7A7567;
+            --text-tertiary: #B0AB9E;
+            --accent-gold: #B8860B;
+            --accent-gold-light: #D4A017;
+            --accent-gold-pale: #FDF5E0;
+            --signal: #C49A0A;
+            --signal-bg: #FEF9E7;
+            --good: #3D7A4F;
+            --good-soft: #4CAF50;
+            --good-bg: #EBF5EE;
+            --warning: #B87333;
+            --warning-bg: #FDF3E7;
+            --critical: #A83232;
+            --critical-bg: #FCEAEA;
+        }
+    `;
+    clone.insertBefore(styleDef, clone.firstChild);
 
     const serializer = new XMLSerializer();
     let svgString = serializer.serializeToString(clone);
@@ -161,7 +195,7 @@ export async function generateReport(data: ReportData): Promise<void> {
             doc.setFont("helvetica", "normal");
             doc.setFontSize(8);
             doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
-            doc.text(`Client: ${floorPlan.name}`, margin + 6, H - margin - 6);
+            doc.text(`Client: ${floorPlan.clientName}`, margin + 6, H - margin - 6);
             
             // Page Number
             doc.setFont("helvetica", "bold");
@@ -170,7 +204,7 @@ export async function generateReport(data: ReportData): Promise<void> {
 
             // Consultant Name
             doc.setFont("helvetica", "normal");
-            doc.text("ACHARYA DHARMARAJ V. KASALKAR", W - margin - 6, H - margin - 6, { align: "right" });
+            doc.text(floorPlan.consultantName, W - margin - 6, H - margin - 6, { align: "right" });
         }
     };
 
@@ -226,7 +260,7 @@ export async function generateReport(data: ReportData): Promise<void> {
     doc.setFontSize(12);
     doc.text("PREPARED FOR", W / 2, H / 2 + 30, { align: "center" });
     doc.setFontSize(18);
-    doc.text(floorPlan.name.toUpperCase(), W / 2, H / 2 + 40, { align: "center" });
+    doc.text(floorPlan.clientName.toUpperCase(), W / 2, H / 2 + 40, { align: "center" });
     
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
@@ -240,19 +274,21 @@ export async function generateReport(data: ReportData): Promise<void> {
     doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
     doc.text("PREPARED BY", W / 2, H - 60, { align: "center" });
     doc.setFontSize(14);
-    doc.text("ACHARYA DHARMARAJ V. KASALKAR", W / 2, H - 52, { align: "center" });
+    doc.text(floorPlan.consultantName, W / 2, H - 52, { align: "center" });
 
     // ==========================================
     // PREPARE IMAGES
     // ==========================================
     // 1. Layout Map (Walls/Furniture/Text/Background)
-    const imgLayout = await svgToImage(svgElement, ["bg-image-layer", "trace-layer", "map-walls-layer", "map-furniture-layer", "map-texts-layer"]);
+    const imgLayout = await svgToImage(svgElement, ["bg-image-layer", "trace-layer", "map-walls-layer", "map-furniture-layer", "map-texts-layer", "placed-items"]);
     // 2. Shakti Chakra Map (Walls + Chakra + Text/Furniture based on user feedback)
-    const imgChakra = await svgToImage(svgElement, ["map-walls-layer", "map-furniture-layer", "map-texts-layer", "shakti-chakra-layer"]);
+    const imgChakra = await svgToImage(svgElement, ["map-walls-layer", "map-furniture-layer", "map-texts-layer", "shakti-chakra-layer", "placed-items"]);
     // 3. Zones Map (Walls + Zones)
-    const imgZones = await svgToImage(svgElement, ["map-walls-layer", "zone-fills-layer", "shakti-chakra-layer"]); 
+    const imgZones = await svgToImage(svgElement, ["map-walls-layer", "zone-fills-layer", "shakti-chakra-layer", "placed-items"]); 
     // 4. Marma Points Map
-    const imgMarma = await svgToImage(svgElement, ["map-walls-layer", "map-furniture-layer", "map-texts-layer", "shakti-chakra-layer", "marma-layer"]);
+    const imgMarma = await svgToImage(svgElement, ["map-walls-layer", "map-furniture-layer", "map-texts-layer", "shakti-chakra-layer", "marma-layer", "placed-items"]);
+    // 5. Devtas Map
+    const imgDevtas = await svgToImage(svgElement, ["map-walls-layer", "devtas-layer", "placed-items"]);
 
     // ==========================================
     // PAGE 2: LAYOUT CENTER
@@ -521,7 +557,95 @@ export async function generateReport(data: ReportData): Promise<void> {
     doc.text(`--- Max. (${maxArea.toFixed(2)})`, graphX + graphW - 10, graphY + 20, { align: "right" });
 
     // ==========================================
-    // PAGE 7: PLACEMENT & REMEDIES
+    // PAGE 7: DEVTA ANALYSIS
+    // ==========================================
+    if (analysis.devtaAreas && analysis.devtaAreas.length > 0) {
+        doc.addPage();
+        generatePageBorder();
+        addHeader("DEVTA ANALYSIS", "32 Outer Energy Fields");
+
+        const dh = 110; 
+        const dw = dh / mapAspect;
+        const dx = W / 2 - dw / 2;
+        
+        doc.setDrawColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
+        doc.setFillColor(250, 248, 245);
+        doc.rect(dx - 2, cy - 2, dw + 4, dh + 4, "FD");
+        doc.addImage(imgDevtas, "PNG", dx, cy, dw, dh);
+
+        // Barchart Title
+        const dby = cy + dh + 10;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(12);
+        doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
+        doc.text("Devta Area Distribution Graph", margin + 10, dby);
+
+        // Draw Bar Chart Area
+        const dGraphX = margin + 18; 
+        const dGraphH = 42;
+        const dGraphY = dby + 12 + dGraphH; // Base line of bars
+        const dGraphW = W - margin - 5 - dGraphX;
+
+        const devtaVals = analysis.devtaAreas.map(d => d.areaReal);
+        const dMinArea = Math.min(...devtaVals);
+        const dMaxArea = Math.max(...devtaVals);
+        const dAvgArea = devtaVals.reduce((a, b) => a + b, 0) / devtaVals.length;
+        // Scale bars relative to actual data — no hard-coded floor
+        const dRangeHeight = dMaxArea * 1.05;
+
+        const drawDevtaDottedLine = (yVal: number, color: number[], label: string) => {
+            const yPos = dGraphY - (yVal / dRangeHeight) * dGraphH;
+            doc.setDrawColor(color[0], color[1], color[2]);
+            doc.setLineWidth(0.2);
+            doc.setLineDashPattern([1, 1], 0);
+            doc.line(dGraphX - 2, yPos, dGraphX + dGraphW, yPos);
+            doc.setLineDashPattern([], 0);
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7);
+            doc.setTextColor(color[0], color[1], color[2]);
+            doc.text(label, dGraphX - 4, yPos + 2, { align: "right" });
+        };
+
+        drawDevtaDottedLine(0, [150, 150, 150], "0.0");
+        drawDevtaDottedLine(dMinArea, [74, 144, 217], `-- Min. (${dMinArea.toFixed(1)})`);
+        drawDevtaDottedLine(dAvgArea, [46, 184, 86], `-- Avg. (${dAvgArea.toFixed(1)})`);
+        drawDevtaDottedLine(dMaxArea, [232, 60, 60], `-- Max. (${dMaxArea.toFixed(1)})`);
+
+        const dNumBars = analysis.devtaAreas.length;
+        const dBarW = (dGraphW / dNumBars) - 1.5;
+
+        analysis.devtaAreas.forEach((d, i) => {
+            const h = (d.areaReal / dRangeHeight) * dGraphH;
+            const bx = dGraphX + i * (dBarW + 1.5) + 0.5;
+            const bY = dGraphY - h;
+
+            doc.setFillColor(184, 146, 58); // Gold
+            doc.rect(bx, bY, dBarW, h, "F");
+
+            // Name
+            const subName = d.name.substring(0, 3).toUpperCase();
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(5.5);
+            doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
+            doc.text(subName, bx + dBarW/2 + 0.5, dGraphY + 5, { align: "center", angle: -45 });
+        });
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        
+        doc.setTextColor(74, 144, 217);
+        doc.text(`--- Min. (${dMinArea.toFixed(1)})`, dGraphX + 10, dGraphY + 15);
+        
+        doc.setTextColor(46, 184, 86);
+        doc.text(`--- Avg. (${dAvgArea.toFixed(1)})`, dGraphX + dGraphW/2 - 10, dGraphY + 15, { align: "center" });
+        
+        doc.setTextColor(232, 60, 60);
+        doc.text(`--- Max. (${dMaxArea.toFixed(1)})`, dGraphX + dGraphW - 10, dGraphY + 15, { align: "right" });
+    }
+
+    // ==========================================
+    // PAGE 8: PLACEMENT & REMEDIES
     // ==========================================
     doc.addPage();
     generatePageBorder();
@@ -537,8 +661,8 @@ export async function generateReport(data: ReportData): Promise<void> {
         doc.setFontSize(9);
         doc.setTextColor(255, 255, 255);
         doc.text("OBJECT / ACTIVITY", margin + 6, y + 6);
-        doc.text("ZONE", margin + W/3, y + 6);
-        doc.text("EFFECT / REMEDY", margin + W/1.8, y + 6);
+        doc.text("ZONE", margin + 50, y + 6);
+        doc.text("DETAILS & REMEDY", margin + 80, y + 6);
         return y + 10;
     };
 
@@ -551,15 +675,24 @@ export async function generateReport(data: ReportData): Promise<void> {
             doc.setFillColor(255, 255, 255);
         }
         
+        const c1X = margin + 6;
+        const c2X = margin + 50;
+        const c3X = margin + 80;
+        const maxTextW = W - margin - c3X - 6;
+
+        let remarkText = `STATUS: ${item.status.toUpperCase()}`;
+        if (item.reasoning) remarkText += `\nREASONING: ${item.reasoning}`;
+        if (item.fix) remarkText += `\nREMEDY: ${item.fix}`;
+
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
-        const remarkText = item.fix ? `${item.reasoning} | Remedy: ${item.fix}` : (item.reasoning || item.status.toUpperCase());
-        const splitRemark = doc.splitTextToSize(remarkText, (W - 2*margin) - (W/1.8));
+        const splitRemark = doc.splitTextToSize(remarkText, maxTextW);
         
-        const rowH = Math.max(15, splitRemark.length * 5 + 6);
+        // Calculate required row height based on text lines
+        const rowH = Math.max(15, splitRemark.length * 4.5 + 6);
 
         // Check page overflow heavily guarded against intersecting footer
-        if (placementY + rowH > H - margin - 30) {
+        if (placementY + rowH > H - margin - 20) {
             doc.addPage();
             generatePageBorder();
             placementY = margin + 20; // reset y
@@ -575,17 +708,21 @@ export async function generateReport(data: ReportData): Promise<void> {
         // Object
         doc.setFont("helvetica", "bold");
         doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-        doc.text(item.type, margin + 6, placementY + 7);
+        
+        // Wrap object name if it's too long
+        const splitObjName = doc.splitTextToSize(item.customName || item.type, c2X - c1X - 2);
+        doc.text(splitObjName, c1X, placementY + 8);
 
         // Zone
-        doc.setFont("helvetica", "normal");
+        doc.setFont("helvetica", "bold");
         const statusColor = (item.status === "best" || item.status === "good") ? [61, 122, 79] : [168, 50, 50];
         doc.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
-        doc.text(item.zone, margin + W/3, placementY + 7);
+        doc.text(item.zone, c2X, placementY + 8);
 
         // Description
+        doc.setFont("helvetica", "normal");
         doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
-        doc.text(splitRemark, margin + W/1.8, placementY + 7);
+        doc.text(splitRemark, c3X, placementY + 8);
 
         placementY += rowH;
         
