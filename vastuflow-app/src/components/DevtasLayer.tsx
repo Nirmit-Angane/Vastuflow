@@ -40,7 +40,7 @@ export default function DevtasLayer({ zones, visible, showNames = true }: Devtas
                                 key={`${cell.id}-poly-${idx}`}
                                 points={poly.map(p => `${p.x},${p.y}`).join(" ")}
                                 fill={cell.color}
-                                fillOpacity={0.8}
+                                fillOpacity={0.4}
                                 stroke="#111"
                                 strokeWidth={2}
                                 className="transition-opacity duration-200 group-hover:fill-opacity-100"
@@ -66,7 +66,7 @@ export default function DevtasLayer({ zones, visible, showNames = true }: Devtas
                                     y={labelY}
                                     textAnchor="middle"
                                     alignmentBaseline="middle"
-                                    fontSize={cell.type === 'brahmasthan' ? "14" : "11"}
+                                    fontSize={cell.type === 'brahmasthan' ? "16" : "12"}
                                     fontWeight="bold"
                                     fill="#000"
                                     pointerEvents="none"

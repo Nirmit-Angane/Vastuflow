@@ -282,7 +282,7 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                             width="840"
                             height="800"
                             preserveAspectRatio="xMidYMid meet"
-                            opacity="0.85"
+                            opacity="0.95"
                             style={{ pointerEvents: "none" }}
                         />
                     </g>
@@ -378,24 +378,20 @@ export default function CanvasArea({ state, dispatch, onCanvasClick }: CanvasAre
                             const isSelected = selectedDirection === ov.direction;
                             const isActive = isSelected || isHovered;
 
-                            // Only show specific zone if one is hovered/selected, otherwise show all if none selected
-                            if (!isActive && (hoveredDirection || selectedDirection)) return null;
+                            // We no longer hide other zones when one is active, to show the "Full" Shakti Chakra colors.
+                            // instead we just lower their opacity relative to the active one.
 
-                            const statusColor = ov.percentOfTotal >= 5
-                                ? "var(--good)"
-                                : ov.percentOfTotal >= 2
-                                    ? "var(--accent-gold)"
-                                    : "var(--critical)";
-
+                            const color = DIRECTION_COLORS[ov.direction];
+                            
                             return (
                                 <polygon
                                     key={`zone-${i}`}
                                     points={ov.clippedPolygon.map(p => `${p.x},${p.y}`).join(" ")}
-                                    fill={isActive ? DIRECTION_COLORS[ov.direction] : statusColor}
-                                    opacity={isActive ? "0.6" : "0.12"}
-                                    stroke={isActive ? DIRECTION_COLORS[ov.direction] : statusColor}
-                                    strokeWidth={isActive ? "1.5" : "0.5"}
-                                    strokeOpacity={isActive ? "1" : "0.3"}
+                                    fill={color}
+                                    opacity={isActive ? "0.55" : "0.2"}
+                                    stroke={color}
+                                    strokeWidth={isActive ? "2" : "0.5"}
+                                    strokeOpacity={isActive ? "1" : "0.4"}
                                 />
                             );
                         })}

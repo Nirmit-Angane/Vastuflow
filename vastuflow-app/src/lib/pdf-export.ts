@@ -125,6 +125,60 @@ async function svgToImage(originalSvg: SVGSVGElement, visibleLayers: string[]): 
             --critical: #A83232;
             --critical-bg: #FCEAEA;
         }
+        
+        /* High-Visibility Print Overrides */
+        text {
+            font-family: 'Inter', 'system-ui', 'Arial', sans-serif !important;
+            shape-rendering: geometricPrecision !important;
+            text-rendering: optimizeLegibility !important;
+        }
+
+        /* FULL-PAGE Devta analysis (p.7) - Focus on main names */
+        .devtas-layer text {
+            fill: #000 !important;
+            stroke: #FFFFFF !important;
+            stroke-width: 0.6px !important;
+            paint-order: stroke fill !important;
+        }
+        /* The main Devta name (first line) */
+        .devtas-layer text tspan:first-child {
+            font-size: 18px !important;
+            font-weight: 900 !important;
+        }
+        /* The subtext details (other lines) - make them thin and small */
+        .devtas-layer text tspan:not(:first-child) {
+            font-size: 10px !important;
+            font-weight: 500 !important;
+            fill: #444 !important;
+            stroke: none !important;
+        }
+
+        /* Clean, lighter labels for the Shakti Chakra ring (p.2,3,4,5,6) */
+        .shakti-chakra-layer #zoneLabels text {
+            font-size: 12px !important;
+            font-weight: 500 !important;
+            fill: #111 !important;
+            stroke: none !important;
+        }
+
+        /* Shakti Chakra main labels - keep them clear but readable, not oversized */
+        .shakti-chakra-layer #dirLabels text {
+            font-size: 14px !important;
+            font-weight: 700 !important;
+            stroke: none !important;
+        }
+        .shakti-chakra-layer #subDirLabels text {
+            font-size: 9px !important;
+        }
+        .shakti-chakra-layer #degreeLabels text {
+            font-size: 9px !important;
+            font-weight: 500 !important;
+        }
+
+        /* Wall lines - slightly darker for print */
+        .map-walls-layer line {
+            stroke-opacity: 0.9 !important;
+        }
     `;
     clone.insertBefore(styleDef, clone.firstChild);
 
@@ -142,17 +196,26 @@ async function svgToImage(originalSvg: SVGSVGElement, visibleLayers: string[]): 
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
-            // Scale up for better print quality (3x)
+            // 4x scale for high-quality (300dpi+) printing
+            const scale = 4;
             const canvas = document.createElement("canvas");
-            canvas.width = w * 3;
-            canvas.height = h * 3;
+            
+            // Safety cap: don't exceed 8000px to avoid memory issues
+            canvas.width = Math.min(8000, w * scale);
+            canvas.height = Math.min(8000, h * scale);
+            
             const ctx = canvas.getContext("2d");
             if (ctx) {
-                // Fill background white
+                // Ensure high-quality scaling
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = "high";
+                
                 ctx.fillStyle = "#FFFFFF";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                resolve(canvas.toDataURL("image/png", 1.0));
+                
+                // JPEG at 0.98 quality — virtually lossless text with 4x resolution
+                resolve(canvas.toDataURL("image/jpeg", 0.98));
             } else {
                 reject(new Error("Failed to get canvas context"));
             }
@@ -232,10 +295,12 @@ export async function generateReport(data: ReportData): Promise<void> {
     }
     const mapAspect = svgH / svgW;
 
-    const cw = margin + 12; // left padding
-    const cy = margin + 45; // top padding after header
+    const cw = margin + 6;  // tighter left padding → wider maps
+    const cy = margin + 38; // top padding after header (closer to header)
     const mw = W - (cw * 2); // available width
-    const mh = mw * mapAspect; // maintain aspect ratio
+    // Cap map height so it never overlaps the footer (footer starts at H-margin-18)
+    const maxMh = H - cy - margin - 30; // 30mm breathing room for footer+text
+    const mh = Math.min(mw * mapAspect, maxMh);
 
     // ==========================================
     // PAGE 1: COVER
@@ -302,19 +367,16 @@ export async function generateReport(data: ReportData): Promise<void> {
     doc.setLineWidth(0.5);
     doc.rect(cw - 2, cy - 2, mw + 4, mh + 4);
     
-    doc.addImage(imgLayout, "PNG", cw, cy, mw, mh);
+    doc.addImage(imgLayout, "JPEG", cw, cy, mw, mh);
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-    doc.text("Project details:", margin + 10, cy + mh + 20);
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
-    
-    const detailsLines = doc.splitTextToSize(analysis.summary || "Geometrically aligned layout representing the physical boundaries of the property.", W - 2*margin - 20);
-    doc.text(detailsLines, margin + 10, cy + mh + 28);
+    // Compact one-line summary below map
+    if (cy + mh + 12 < H - margin - 20) {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8.5);
+        doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
+        const summaryLine = doc.splitTextToSize(analysis.summary || "Floor plan layout.", W - 2*margin - 12);
+        doc.text(summaryLine[0], margin + 6, cy + mh + 10);
+    }
 
     // ==========================================
     // PAGE 3: SHAKTI CHAKRA
@@ -329,17 +391,14 @@ export async function generateReport(data: ReportData): Promise<void> {
     
     doc.setFillColor(250, 248, 245);
     doc.rect(cw, cy, mw, mh, "F");
-    doc.addImage(imgChakra, "PNG", cw, cy, mw, mh);
+    doc.addImage(imgChakra, "JPEG", cw, cy, mw, mh);
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-    doc.text("Directional Alignment", margin + 10, cy + mh + 20);
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
-    doc.text("The Shakti Chakra divides the space into 16 distinct energy zones. This map illustrates the physical orientation and proportional influence of each direction across the property.", margin + 10, cy + mh + 28, { maxWidth: W - 2*margin - 20 });
+    if (cy + mh + 10 < H - margin - 20) {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8.5);
+        doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
+        doc.text("16 directional energy zones — Shakti Chakra overlay on floor plan.", margin + 6, cy + mh + 10);
+    }
 
     // ==========================================
     // PAGE 4: MARMA POINTS
@@ -354,17 +413,14 @@ export async function generateReport(data: ReportData): Promise<void> {
     
     doc.setFillColor(250, 248, 245);
     doc.rect(cw, cy, mw, mh, "F");
-    doc.addImage(imgMarma, "PNG", cw, cy, mw, mh);
+    doc.addImage(imgMarma, "JPEG", cw, cy, mw, mh);
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-    doc.text("Energy Nodes", margin + 10, cy + mh + 20);
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
-    doc.text("Marma points represent highly sensitive intersections of energy lines within the Vastu Mandala. They should remain clear of heavy structures, pillars, or internal walls to avoid energetic blockages.", margin + 10, cy + mh + 28, { maxWidth: W - 2*margin - 20 });
+    if (cy + mh + 10 < H - margin - 20) {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8.5);
+        doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
+        doc.text("Vital energy nodes — keep free of heavy structures & pillars.", margin + 6, cy + mh + 10);
+    }
 
     // ==========================================
     // PAGE 5: MARMA POINTS TABLE
@@ -391,9 +447,9 @@ export async function generateReport(data: ReportData): Promise<void> {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-    doc.text("Marma Points Identification Table", W / 2, cy - 5, { align: "center" });
+    doc.text("Marma Points Identification Table", W / 2, cy + 2, { align: "center" });
 
-    let tY = cy;
+    let tY = cy + 10;
     const tGroupW = (W - 2 * margin - 10) / 3;
     
     // Header
@@ -440,208 +496,39 @@ export async function generateReport(data: ReportData): Promise<void> {
     generatePageBorder();
     addHeader("ZONE ANALYSIS", "Spatial Distribution & Area Strengths");
 
-    // Map on top - Fixed height to avoid overlapping footer
-    const zh = 80; 
-    const zw = zh / mapAspect;
-    const zx = W / 2 - zw / 2;
-    
+    // Full-width map — use the same mw/mh as other map pages
     doc.setDrawColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
     doc.setFillColor(250, 248, 245);
-    doc.rect(zx - 2, cy - 2, zw + 4, zh + 4, "FD");
-    doc.addImage(imgZones, "PNG", zx, cy, zw, zh);
+    doc.rect(cw - 2, cy - 2, mw + 4, mh + 4, "FD");
+    doc.addImage(imgZones, "JPEG", cw, cy, mw, mh);
 
-    // Barchart Title
-    const by = cy + zh + 15;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-    doc.text("Zonal Distribution Graph", margin + 10, by);
-
-    // Draw Bar Chart Area
-    const graphX = margin + 25; // Leave 25mm space for left labels
-    const graphH = 45;
-    const graphY = by + 12 + graphH; // Base line of bars
-    const graphW = W - margin - 5 - graphX;
-
-    const orderedDirections: string[] = [
-        "NNW", "N", "NNE", "NE", 
-        "ENE", "E", "ESE", "SE", 
-        "SSE", "S", "SSW", "SW", 
-        "WSW", "W", "WNW", "NW"
-    ];
-
-    const dirColors: Record<string, number[]> = {
-        "NNW": [74, 144, 217], "N": [74, 144, 217], "NNE": [74, 144, 217], "NE": [74, 144, 217], 
-        "ENE": [46, 184, 86], "E": [46, 184, 86], "ESE": [46, 184, 86], "SE": [46, 184, 86],       
-        "SSE": [232, 60, 60], "S": [232, 60, 60],                                                  
-        "SSW": [240, 175, 20], "SW": [240, 175, 20],                                               
-        "WSW": [115, 115, 122], "W": [115, 115, 122], "WNW": [115, 115, 122], "NW": [115, 115, 122] 
-    };
-
-    // Use actual area (Sq. Ft or raw values) instead of percentages if 'zoneResults' is available
-    let vals = orderedDirections.map(d => {
-        // Fallback to sector overlaps if zoneResults is missing
-        const matched = analysis.zoneResults ? 
-            analysis.zoneResults.find(o => o.direction === d)?.areaReal :
-            analysis.sectorOverlaps.find(o => o.direction === d)?.percentOfTotal;
-        return matched || 0;
-    });
-    
-    if (vals.every(v => v === 0)) vals = orderedDirections.map(() => 10);
-
-    const minArea = Math.min(...vals);
-    const maxArea = Math.max(...vals);
-    const avgArea = vals.reduce((a, b) => a + b, 0) / vals.length;
-    const rangeHeight = Math.max(10, maxArea * 1.05); // Give a little headroom
-
-    const drawDottedLine = (yVal: number, color: number[], label: string) => {
-        const yPos = graphY - (yVal / rangeHeight) * graphH;
-        doc.setDrawColor(color[0], color[1], color[2]);
-        doc.setLineWidth(0.2);
-        doc.setLineDashPattern([1, 1], 0);
-        doc.line(graphX - 2, yPos, graphX + graphW, yPos);
-        doc.setLineDashPattern([], 0);
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(7);
-        doc.setTextColor(color[0], color[1], color[2]);
-        doc.text(label, graphX - 4, yPos + 2, { align: "right" });
-    };
-
-    // Reference lines
-    drawDottedLine(0, [150, 150, 150], "0.0");
-    drawDottedLine(minArea, [74, 144, 217], `-- Min. (${minArea.toFixed(2)})`);
-    drawDottedLine(avgArea, [46, 184, 86], `-- Avg. (${avgArea.toFixed(2)})`);
-    drawDottedLine(maxArea, [232, 60, 60], `-- Max. (${maxArea.toFixed(2)})`);
-
-    const numBars = vals.length;
-    const barW = (graphW / numBars) - 2;
-
-    vals.forEach((val, i) => {
-        const h = (val / rangeHeight) * graphH;
-        const bx = graphX + i * (barW + 2) + 1;
-        const bY = graphY - h;
-
-        const dir = orderedDirections[i];
-        const fill = dirColors[dir] || COLOR_PRIMARY;
-
-        doc.setFillColor(fill[0], fill[1], fill[2]);
-        doc.rect(bx, bY, barW, h, "F");
-
-        const diff = val - avgArea;
-        const diffText = diff > 0 ? `+${diff.toFixed(2)}` : diff.toFixed(2);
-        const tColor = diff > 0 ? [46, 184, 86] : [232, 60, 60];
-        
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(6);
-        doc.setTextColor(tColor[0], tColor[1], tColor[2]);
-        doc.text(diffText, bx + barW/2, bY - 2, { align: "center" });
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(7);
-        doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-        doc.text(dir, bx + barW/2, graphY + 6, { align: "center" });
-    });
-
-    // Sublabels for Min/Avg/Max at bottom layout symmetrically
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    
-    doc.setTextColor(74, 144, 217);
-    doc.text(`--- Min. (${minArea.toFixed(2)})`, graphX + 10, graphY + 20);
-    
-    doc.setTextColor(46, 184, 86);
-    doc.text(`--- Avg. (${avgArea.toFixed(2)})`, graphX + graphW/2 - 10, graphY + 20, { align: "center" });
-    
-    doc.setTextColor(232, 60, 60);
-    doc.text(`--- Max. (${maxArea.toFixed(2)})`, graphX + graphW - 10, graphY + 20, { align: "right" });
+    if (cy + mh + 10 < H - margin - 20) {
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8.5);
+        doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
+        doc.text("16 Vastu zones — proportional area distribution across the property.", margin + 6, cy + mh + 10);
+    }
 
     // ==========================================
-    // PAGE 7: DEVTA ANALYSIS
+    // PAGE 7: DEVTA ANALYSIS — full-page map, no bar chart
     // ==========================================
     if (analysis.devtaAreas && analysis.devtaAreas.length > 0) {
         doc.addPage();
         generatePageBorder();
-        addHeader("DEVTA ANALYSIS", "32 Outer Energy Fields");
+        addHeader("DEVTA ANALYSIS", "32 Outer Devta Energy Fields");
 
-        const dh = 110; 
-        const dw = dh / mapAspect;
-        const dx = W / 2 - dw / 2;
-        
+        // Use full available width & smart height cap same as other pages
         doc.setDrawColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
         doc.setFillColor(250, 248, 245);
-        doc.rect(dx - 2, cy - 2, dw + 4, dh + 4, "FD");
-        doc.addImage(imgDevtas, "PNG", dx, cy, dw, dh);
+        doc.rect(cw - 2, cy - 2, mw + 4, mh + 4, "FD");
+        doc.addImage(imgDevtas, "JPEG", cw, cy, mw, mh);
 
-        // Barchart Title
-        const dby = cy + dh + 10;
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(12);
-        doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-        doc.text("Devta Area Distribution Graph", margin + 10, dby);
-
-        // Draw Bar Chart Area
-        const dGraphX = margin + 18; 
-        const dGraphH = 42;
-        const dGraphY = dby + 12 + dGraphH; // Base line of bars
-        const dGraphW = W - margin - 5 - dGraphX;
-
-        const devtaVals = analysis.devtaAreas.map(d => d.areaReal);
-        const dMinArea = Math.min(...devtaVals);
-        const dMaxArea = Math.max(...devtaVals);
-        const dAvgArea = devtaVals.reduce((a, b) => a + b, 0) / devtaVals.length;
-        // Scale bars relative to actual data — no hard-coded floor
-        const dRangeHeight = dMaxArea * 1.05;
-
-        const drawDevtaDottedLine = (yVal: number, color: number[], label: string) => {
-            const yPos = dGraphY - (yVal / dRangeHeight) * dGraphH;
-            doc.setDrawColor(color[0], color[1], color[2]);
-            doc.setLineWidth(0.2);
-            doc.setLineDashPattern([1, 1], 0);
-            doc.line(dGraphX - 2, yPos, dGraphX + dGraphW, yPos);
-            doc.setLineDashPattern([], 0);
-
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(7);
-            doc.setTextColor(color[0], color[1], color[2]);
-            doc.text(label, dGraphX - 4, yPos + 2, { align: "right" });
-        };
-
-        drawDevtaDottedLine(0, [150, 150, 150], "0.0");
-        drawDevtaDottedLine(dMinArea, [74, 144, 217], `-- Min. (${dMinArea.toFixed(1)})`);
-        drawDevtaDottedLine(dAvgArea, [46, 184, 86], `-- Avg. (${dAvgArea.toFixed(1)})`);
-        drawDevtaDottedLine(dMaxArea, [232, 60, 60], `-- Max. (${dMaxArea.toFixed(1)})`);
-
-        const dNumBars = analysis.devtaAreas.length;
-        const dBarW = (dGraphW / dNumBars) - 1.5;
-
-        analysis.devtaAreas.forEach((d, i) => {
-            const h = (d.areaReal / dRangeHeight) * dGraphH;
-            const bx = dGraphX + i * (dBarW + 1.5) + 0.5;
-            const bY = dGraphY - h;
-
-            doc.setFillColor(184, 146, 58); // Gold
-            doc.rect(bx, bY, dBarW, h, "F");
-
-            // Name
-            const subName = d.name.substring(0, 3).toUpperCase();
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(5.5);
-            doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-            doc.text(subName, bx + dBarW/2 + 0.5, dGraphY + 5, { align: "center", angle: -45 });
-        });
-        
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        
-        doc.setTextColor(74, 144, 217);
-        doc.text(`--- Min. (${dMinArea.toFixed(1)})`, dGraphX + 10, dGraphY + 15);
-        
-        doc.setTextColor(46, 184, 86);
-        doc.text(`--- Avg. (${dAvgArea.toFixed(1)})`, dGraphX + dGraphW/2 - 10, dGraphY + 15, { align: "center" });
-        
-        doc.setTextColor(232, 60, 60);
-        doc.text(`--- Max. (${dMaxArea.toFixed(1)})`, dGraphX + dGraphW - 10, dGraphY + 15, { align: "right" });
+        if (cy + mh + 10 < H - margin - 20) {
+            doc.setFont("helvetica", "italic");
+            doc.setFontSize(8.5);
+            doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
+            doc.text("32 outer Devta energy fields — Vastu Purusha Mandala mapped on floor plan.", margin + 6, cy + mh + 10);
+        }
     }
 
     // ==========================================

@@ -140,6 +140,14 @@ const FURN_ICONS: Record<string, (w: number, h: number) => React.ReactNode> = {
         <rect x={0} y={h * 0.3} width={w} height={h * 0.4} fill="#F8F8F8" stroke="#1C1A15" strokeWidth={1} />
         <line x1={0} y1={h * 0.5} x2={w} y2={h * 0.5} stroke="#1C1A15" strokeWidth={0.5} />
     </>),
+    balcony: (w, h) => (<>
+        <rect x={0} y={0} width={w} height={h} fill="#F8F6F2" stroke="#8B7D6B" strokeWidth={1} />
+        <line x1={0} y1={h * 0.15} x2={w} y2={h * 0.15} stroke="#8B7D6B" strokeWidth={1.2} />
+        {Array.from({ length: 8 }).map((_, i) => (
+            <line key={i} x1={(w / 7) * i} y1={0} x2={(w / 7) * i} y2={h * 0.15} stroke="#8B7D6B" strokeWidth={0.5} />
+        ))}
+        <line x1={0} y1={h * 0.5} x2={w} y2={h * 0.5} stroke="#C4B498" strokeWidth={0.3} strokeDasharray="2 2" />
+    </>),
 };
 
 // Furniture sidebar icon (small preview)
@@ -864,6 +872,7 @@ export default function MapBuilder({ onExit, onAnalyze }: MapBuilderProps) {
                                     { type: "singledoor", wFt: 3, hFt: 0.5, label: "Single Door", icon: (<svg width={36} height={28} viewBox="0 0 36 28"><rect x={2} y={2} width={14} height={24} fill="none" stroke="#8B7D6B" strokeWidth={1.2} /><path d="M16 26 A14 14 0 0 0 16 2" fill="none" stroke="#8B7D6B" strokeWidth={0.8} strokeDasharray="2 1.5" /></svg>) },
                                     { type: "doubledoor", wFt: 6, hFt: 0.5, label: "Double Door", icon: (<svg width={36} height={28} viewBox="0 0 36 28"><rect x={1} y={2} width={12} height={24} fill="none" stroke="#8B7D6B" strokeWidth={1} /><rect x={23} y={2} width={12} height={24} fill="none" stroke="#8B7D6B" strokeWidth={1} /><path d="M13 26 A12 12 0 0 0 13 2" fill="none" stroke="#8B7D6B" strokeWidth={0.7} strokeDasharray="2 1.5" /><path d="M23 26 A12 12 0 0 1 23 2" fill="none" stroke="#8B7D6B" strokeWidth={0.7} strokeDasharray="2 1.5" /></svg>) },
                                     { type: "window", wFt: 4, hFt: 0.5, label: "Window", icon: (<svg width={36} height={28} viewBox="0 0 36 28"><rect x={2} y={8} width={32} height={12} rx={1} fill="none" stroke="#8B7D6B" strokeWidth={1.2} /><line x1={18} y1={8} x2={18} y2={20} stroke="#8B7D6B" strokeWidth={0.8} /><line x1={2} y1={14} x2={34} y2={14} stroke="#8B7D6B" strokeWidth={0.5} /></svg>) },
+                                    { type: "balcony", wFt: 6, hFt: 3, label: "Balcony", icon: (<svg width={36} height={28} viewBox="0 0 36 28"><rect x={2} y={10} width={32} height={14} fill="#F8F6F2" stroke="#8B7D6B" strokeWidth={1} /><line x1={2} y1={13} x2={34} y2={13} stroke="#8B7D6B" strokeWidth={1} />{[2, 7, 12, 17, 22, 27, 32].map(x => <line key={x} x1={x} y1={10} x2={x} y2={13} stroke="#8B7D6B" strokeWidth={0.5} />)}</svg>) },
                                 ].map(d => (
                                     <div key={d.label}
                                         className={`map-sidebar-item ${placingFurniture?.type === d.type ? "selected" : ""}`}
