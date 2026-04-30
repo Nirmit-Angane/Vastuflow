@@ -115,7 +115,7 @@ export default function AreaAnalysisModal({ isOpen, onClose, zoneResults, scaleU
                                     color: '#374151',
                                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                                 }}
-                                formatter={(value: number | string | Array<number | string> | undefined) => [`${Number(value || 0).toFixed(2)} sq. ${scaleUnit}`, 'Area']}
+                                formatter={(value: any) => [`${Number(value || 0).toFixed(2)} sq. ${scaleUnit}`, 'Area']}
                             />
 
                             <ReferenceLine
