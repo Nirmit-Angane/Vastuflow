@@ -221,28 +221,7 @@ export default function ShaktiChakra({
                 })}
             </g>
 
-            {/* Main direction labels */}
-            <g id="dirLabels" style={{ pointerEvents: "none" }}>
-                {mainDirs.map(d => {
-                    const p = polarToXY(d.deg, 130);
-                    const isSelected = selectedDirection === d.name || selectedDirection === directions.find((dir) => dir.start === d.deg)?.name;
-                    return (
-                        <text
-                            key={`main-${d.name}`}
-                            x={p.x} y={p.y}
-                            textAnchor="middle" dominantBaseline="middle"
-                            fill={isSelected ? "#b8923a" : "#7b5c2e"}
-                            fontSize={d.name.length <= 2 ? "15" : "12"}
-                            fontFamily="'Cinzel', serif"
-                            fontWeight={isSelected ? "700" : "600"}
-                            opacity="0.85"
-                            style={{ transition: "fill 0.2s" }}
-                        >
-                            {d.name}
-                        </text>
-                    );
-                })}
-            </g>
+            {/* Main direction labels removed per request */}
 
             {/* Sub-direction abbreviations on ring (190-230) */}
             <g id="subDirLabels" style={{ pointerEvents: "none" }}>

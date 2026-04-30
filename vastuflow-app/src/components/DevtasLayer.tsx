@@ -26,7 +26,7 @@ export default function DevtasLayer({ zones, visible, showNames = true }: Devtas
                     const dy = cell.textPos.y - layoutCentroid.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist > 0) {
-                        const pushOut = 80 + (idx % 2 === 0 ? 0 : 50); // Stagger text distance
+                        const pushOut = 110 + (idx % 2 === 0 ? 0 : 65); // Stagger text distance
                         labelX += (dx / dist) * pushOut;
                         labelY += (dy / dist) * pushOut;
                     }
@@ -48,46 +48,86 @@ export default function DevtasLayer({ zones, visible, showNames = true }: Devtas
                         ))}
                         
                         {/* Label layout handling */}
-                        {showNames && cell.textPos && (
-                            <g>
-                                {isOuter && (
-                                    <>
-                                        <circle cx={cell.textPos.x} cy={cell.textPos.y} r={3} fill="#222" />
-                                        <line 
-                                            x1={cell.textPos.x} y1={cell.textPos.y} 
-                                            x2={labelX} y2={labelY} 
-                                            stroke="#222" 
-                                            strokeWidth="1" 
-                                        />
-                                    </>
-                                )}
-                                <text
-                                    x={labelX}
-                                    y={labelY}
-                                    textAnchor="middle"
-                                    alignmentBaseline="middle"
-                                    fontSize={cell.type === 'brahmasthan' ? "16" : "12"}
-                                    fontWeight="bold"
-                                    fill="#000"
-                                    pointerEvents="none"
-                                    className="drop-shadow-md select-none"
-                                >
-                                    <tspan x={labelX} dy="-0.5em">{cell.devta}</tspan>
-                                    {cell.subtext && cell.subtext.split('\n').map((lineText, i) => (
-                                        <tspan 
-                                            key={i} 
-                                            x={labelX} 
-                                            dy="1.2em" 
-                                            fontSize="9" 
-                                            fontWeight="600"
-                                            fill="#222"
+                        {showNames && cell.textPos && (() => {
+                            const mainText = cell.devta || '';
+                            const subLines = cell.subtext ? cell.subtext.split('\n') : [];
+                            const fontSize = cell.type === 'brahmasthan' ? 16 : 12;
+                            const subFontSize = 9;
+                            
+                            // Approximate char widths (snug but sufficient)
+                            const mainWidth = mainText.length * fontSize * 0.68;
+                            const subWidths = subLines.map(l => l.length * subFontSize * 0.58);
+                            const maxWidth = Math.max(mainWidth, ...subWidths) + 18;
+                            
+                            // Use absolute Y positions for each line
+                            const mainLineY = labelY;                              // devta name
+                            const subLineYs = subLines.map((_, i) => labelY + fontSize * 0.95 + i * (subFontSize * 1.35));
+                            
+                            // Bounding box — generous padding for both browser SVG & PDF Canvas renderer
+                            const padV = 12;
+                            const topY = mainLineY - fontSize - padV;
+                            const bottomY = subLines.length > 0
+                                ? subLineYs[subLineYs.length - 1] + subFontSize * 0.8 + padV
+                                : mainLineY + fontSize * 0.6 + padV;
+                            const totalH = bottomY - topY;
+
+                            return (
+                                <g>
+                                    {isOuter && (
+                                        <>
+                                            <circle cx={cell.textPos.x} cy={cell.textPos.y} r={3} fill="#222" />
+                                            <line 
+                                                x1={cell.textPos.x} y1={cell.textPos.y} 
+                                                x2={labelX} y2={labelY} 
+                                                stroke="#222" 
+                                                strokeWidth="1" 
+                                            />
+                                        </>
+                                    )}
+                                    {/* White background for label readability */}
+                                    <rect
+                                        x={labelX - maxWidth / 2}
+                                        y={topY}
+                                        width={maxWidth}
+                                        height={totalH}
+                                        rx={2}
+                                        ry={2}
+                                        fill="white"
+                                        fillOpacity={0.88}
+                                    />
+                                    <text
+                                        x={labelX}
+                                        textAnchor="middle"
+                                        pointerEvents="none"
+                                        className="select-none"
+                                    >
+                                        {/* Main devta name - absolute Y */}
+                                        <tspan
+                                            x={labelX}
+                                            y={mainLineY}
+                                            fontSize={fontSize}
+                                            fontWeight="bold"
+                                            fill="#000"
                                         >
-                                            {lineText}
+                                            {cell.devta}
                                         </tspan>
-                                    ))}
-                                </text>
-                            </g>
-                        )}
+                                        {/* Sub-text lines - absolute Y each */}
+                                        {subLines.map((lineText, i) => (
+                                            <tspan 
+                                                key={i} 
+                                                x={labelX}
+                                                y={subLineYs[i]}
+                                                fontSize={subFontSize}
+                                                fontWeight="600"
+                                                fill="#222"
+                                            >
+                                                {lineText}
+                                            </tspan>
+                                        ))}
+                                    </text>
+                                </g>
+                            );
+                        })()}
                     </g>
                 );
             })}

@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import { VastuDirection, SectorOverlap } from "@/core/geometry/types";
+import { VastuDirection, SectorOverlap, DIRECTION_COLORS } from "@/core/geometry/types";
 
 export interface ReportFloorPlan {
     name: string;
@@ -236,54 +236,73 @@ export async function generateReport(data: ReportData): Promise<void> {
     const margin = 12; // Base margin
 
     // Palette
-    const COLOR_PRIMARY = [43, 27, 26]; // Dark Brown #2B1B1A
+    const COLOR_PRIMARY = [74, 14, 14]; // Maroon #4A0E0E
     const COLOR_ACCENT = [184, 146, 58]; // Gold #B8923A
-    const COLOR_TEXT = [80, 75, 65]; 
+    const COLOR_TEXT = [50, 50, 50]; 
+    const COLOR_HEADER_BG = [242, 242, 242]; // Light grey
 
     const generatePageBorder = (showFooter = true) => {
-        // Outer dark border
-        doc.setDrawColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-        doc.setLineWidth(1.5);
-        doc.rect(margin, margin, W - 2*margin, H - 2*margin);
-
-        // Inner thin border
-        doc.setLineWidth(0.3);
-        doc.rect(margin + 2, margin + 2, W - 2*margin - 4, H - 2*margin - 4);
-        
         if (showFooter) {
-            // Footer separator
-            doc.line(margin + 2, H - margin - 15, W - margin - 2, H - margin - 15);
+            const footerY = H - margin - 15;
             
-            // Footer Text
-            doc.setFont("helvetica", "normal");
+            // Footer separator
+            doc.setDrawColor(220, 220, 220); // Very light grey
+            doc.setLineWidth(0.2);
+            doc.line(margin + 5, footerY, W - margin - 5, footerY); // Match visual lines 
+            
+            // Footer Text & Values
+            doc.setFont("helvetica", "bold"); 
             doc.setFontSize(8);
             doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
-            doc.text(`Client: ${floorPlan.clientName}`, margin + 6, H - margin - 6);
             
-            // Page Number
-            doc.setFont("helvetica", "bold");
-            const pageNum = doc.getNumberOfPages().toString().padStart(2, '0');
-            doc.text(pageNum, W / 2, H - margin - 6, { align: "center" });
+            const truncateText = (text: string, maxW: number) => {
+                if (doc.getTextWidth(text) <= maxW) return text;
+                let t = text;
+                while (t.length > 0 && doc.getTextWidth(t + "...") > maxW) t = t.substring(0, t.length - 1);
+                return t + "...";
+            };
+
+            const clientStr = `Client Name: ${floorPlan.clientName}`;
+            doc.text(truncateText(clientStr, 75), margin + 5, footerY + 8);
+            
+            // Center Canvas (Compass and North Direction with degrees)
+            // (Removed per request)
 
             // Consultant Name
-            doc.setFont("helvetica", "normal");
-            doc.text(floorPlan.consultantName, W - margin - 6, H - margin - 6, { align: "right" });
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8);
+            const consultantStr = `Consultant Name: ${floorPlan.consultantName}`;
+            doc.text(truncateText(consultantStr, 75), W - margin - 5, footerY + 8, { align: "right" });
         }
     };
 
     const addHeader = (title: string, subtitle: string) => {
-        doc.setFillColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-        doc.rect(margin + 2, margin + 2, W - 2*margin - 4, 30, "F");
-
-        doc.setTextColor(255, 255, 255);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(22);
-        doc.text(title, margin + 10, margin + 18);
+        const headerY = margin + 15;
         
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
-        doc.text(subtitle, margin + 10, margin + 26);
+        // Separator line
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.2);
+        doc.line(margin + 5, headerY + 5, W - margin - 5, headerY + 5);
+
+        // Left
+        doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text(floorPlan.name.substring(0, 30), margin + 5, headerY);
+        
+        // Center
+        doc.setTextColor(50, 50, 50);
+        doc.setFontSize(14);
+        doc.text(title, W / 2, headerY, { align: "center" });
+        
+        // Right
+        doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        
+        const dateObj = new Date();
+        const dateStr = dateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        doc.text(dateStr, W - margin - 5, headerY, { align: "right" });
     };
 
     // Calculate map dimensions
@@ -295,51 +314,101 @@ export async function generateReport(data: ReportData): Promise<void> {
     }
     const mapAspect = svgH / svgW;
 
-    const cw = margin + 6;  // tighter left padding → wider maps
-    const cy = margin + 38; // top padding after header (closer to header)
-    const mw = W - (cw * 2); // available width
-    // Cap map height so it never overlaps the footer (footer starts at H-margin-18)
-    const maxMh = H - cy - margin - 30; // 30mm breathing room for footer+text
+    const cw = margin + 6;  
+    const cy = margin + 24; // top padding after updated 16px header
+    const mw = W - (cw * 2); 
+    const maxMh = H - cy - margin - 30; // space for footer and charts
     const mh = Math.min(mw * mapAspect, maxMh);
 
     // ==========================================
     // PAGE 1: COVER
     // ==========================================
-    generatePageBorder(false); // No footer on cover
+    generatePageBorder(false);
 
-    // Decorate cover
-    doc.setFillColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-    doc.rect(margin + 2, margin + 2, W - 2*margin - 4, H / 2 - margin, "F");
+    // Cream background
+    doc.setFillColor(252, 250, 245);
+    doc.rect(margin + 2.1, margin + 2.1, W - 2*margin - 4.2, H - 2*margin - 4.2, "F");
 
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(36);
-    doc.text("VASTU ANALYSIS", W / 2, H / 4, { align: "center" });
-    doc.setFontSize(16);
-    doc.setTextColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
-    doc.text("COMPREHENSIVE REPORT", W / 2, H / 4 + 10, { align: "center" });
+    // ---- Decorative Double Border (Cover Page Only) ----
+    const bm = margin + 2; // border margin from page edge
 
-    // Client Info
+    // Outer border — thick maroon line
+    doc.setDrawColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
+    doc.setLineWidth(0.8);
+    doc.rect(bm, bm, W - 2 * bm, H - 2 * bm, "S");
+
+    // Inner border — thin maroon line, 4mm inset from outer
+    const innerInset = 4;
+    doc.setLineWidth(0.35);
+    doc.rect(bm + innerInset, bm + innerInset, W - 2 * (bm + innerInset), H - 2 * (bm + innerInset), "S");
+    // ---- End Decorative Border ----
+
+    const cx = W / 2;
+    const cy_cover = H / 2 - 10;
+
+    // Main Titles
     doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("PREPARED FOR", W / 2, H / 2 + 30, { align: "center" });
-    doc.setFontSize(18);
-    doc.text(floorPlan.clientName.toUpperCase(), W / 2, H / 2 + 40, { align: "center" });
+    doc.setFontSize(28);
+    const clientName = floorPlan.clientName ? `${floorPlan.clientName.toUpperCase()}'S` : "CLIENT'S";
+    doc.text(clientName, cx, cy_cover - 15, { align: "center" });
     
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
-    doc.text(`${floorPlan.type} | ${floorPlan.location}`, W / 2, H / 2 + 46, { align: "center" });
-    doc.text(`Date: ${generatedAt.split(' ')[0]}`, W / 2, H / 2 + 52, { align: "center" });
+    doc.setFontSize(16);
+    doc.setTextColor(30, 40, 60); // Slate blue subtitle
+    doc.text("VASTU ANALYSIS REPORT", cx, cy_cover + 8, { align: "center" });
 
-    // Consultant Info
+    // Consultant Info Bottom Center
+    const footerY = H - margin - 30;
+    
+    // Faint horizontal line above consultant
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.3);
+    doc.line(cx - 30, footerY - 5, cx + 30, footerY - 5);
+
+    doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
+    doc.setTextColor(50, 60, 70); 
+    doc.text("Prepared By", cx, footerY + 2, { align: "center" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
     doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-    doc.text("PREPARED BY", W / 2, H - 60, { align: "center" });
-    doc.setFontSize(14);
-    doc.text(floorPlan.consultantName, W / 2, H - 52, { align: "center" });
+    doc.text(floorPlan.consultantName.toUpperCase(), cx, footerY + 10, { align: "center" });
+
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
+    doc.text("VASTU, ASTROLOGY AND NUMEROLOGY CONSULTANT", cx, footerY + 15, { align: "center" });
+
+    // North Compass Icon Bottom Right
+    const compX = W - margin - 15;
+    const compY = H - margin - 15;
+    const cr = 6;
+    
+    // Compass Circle
+    doc.setDrawColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
+    doc.setLineWidth(0.3);
+    doc.circle(compX, compY, cr, "S");
+    
+    // Compass Cross lines inside
+    doc.setLineWidth(0.1);
+    doc.line(compX - cr, compY, compX + cr, compY);
+    doc.line(compX, compY - cr, compX, compY + cr);
+
+    // Compass Pointers (Triangles)
+    doc.setFillColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]); // Top pointer - Maroon
+    doc.triangle(compX - 1.5, compY - cr, compX + 1.5, compY - cr, compX, compY - cr - 3, "F");
+    
+    doc.setFillColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]); // Others - Gold
+    doc.triangle(compX - 1.5, compY + cr, compX + 1.5, compY + cr, compX, compY + cr + 3, "F");
+    doc.triangle(compX - cr, compY - 1.5, compX - cr, compY + 1.5, compX - cr - 3, compY, "F");
+    doc.triangle(compX + cr, compY - 1.5, compX + cr, compY + 1.5, compX + cr + 3, compY, "F");
+    
+    // "N" Label
+    doc.setFontSize(6);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
+    doc.text("N", compX, compY - cr - 4, { align: "center" });
 
     // ==========================================
     // PREPARE IMAGES
@@ -362,11 +431,6 @@ export async function generateReport(data: ReportData): Promise<void> {
     generatePageBorder();
     addHeader("LAYOUT CENTER", "Floor Plan & Architectural Layout");
     
-    // Background frame for map
-    doc.setDrawColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
-    doc.setLineWidth(0.5);
-    doc.rect(cw - 2, cy - 2, mw + 4, mh + 4);
-    
     doc.addImage(imgLayout, "JPEG", cw, cy, mw, mh);
 
     // Compact one-line summary below map
@@ -385,12 +449,6 @@ export async function generateReport(data: ReportData): Promise<void> {
     generatePageBorder();
     addHeader("SHAKTI CHAKRA", "16 Vastu Zones overlay on layout");
 
-    doc.setDrawColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
-    doc.setLineWidth(0.5);
-    doc.rect(cw - 2, cy - 2, mw + 4, mh + 4);
-    
-    doc.setFillColor(250, 248, 245);
-    doc.rect(cw, cy, mw, mh, "F");
     doc.addImage(imgChakra, "JPEG", cw, cy, mw, mh);
 
     if (cy + mh + 10 < H - margin - 20) {
@@ -401,33 +459,13 @@ export async function generateReport(data: ReportData): Promise<void> {
     }
 
     // ==========================================
-    // PAGE 4: MARMA POINTS
+    // PAGE 4: MARMA ANALYSIS & TABLE
     // ==========================================
     doc.addPage();
     generatePageBorder();
-    addHeader("MARMA ANALYSIS", "Vital Energy Intersections (Maha Marma)");
+    addHeader("MARMA ANALYSIS", "Vital Energy Nodes & Body Mapping");
 
-    doc.setDrawColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
-    doc.setLineWidth(0.5);
-    doc.rect(cw - 2, cy - 2, mw + 4, mh + 4);
-    
-    doc.setFillColor(250, 248, 245);
-    doc.rect(cw, cy, mw, mh, "F");
     doc.addImage(imgMarma, "JPEG", cw, cy, mw, mh);
-
-    if (cy + mh + 10 < H - margin - 20) {
-        doc.setFont("helvetica", "italic");
-        doc.setFontSize(8.5);
-        doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
-        doc.text("Vital energy nodes — keep free of heavy structures & pillars.", margin + 6, cy + mh + 10);
-    }
-
-    // ==========================================
-    // PAGE 5: MARMA POINTS TABLE
-    // ==========================================
-    doc.addPage();
-    generatePageBorder();
-    addHeader("MARMA IDENTIFICATION", "Detailed Body Mapping & Zones");
 
     const marmaTableData = [
         { p1: "1", b1: "Head Top (Sir)", z1: "NE", p2: "8L, 7L", b2: "Left Lung", z2: "NNW, NNE", p3: "10RT", b3: "Right Thigh", z3: "SSE" },
@@ -444,95 +482,360 @@ export async function generateReport(data: ReportData): Promise<void> {
         { p1: "8, 7", b1: "Heart", z1: "NE", p2: "10LT", b2: "Left Thigh", z2: "W", p3: "", b3: "", z3: "" }
     ];
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-    doc.text("Marma Points Identification Table", W / 2, cy + 2, { align: "center" });
+    let tY = cy + mh + 10;
+    
+    // Check if table fits, if not, push to next page - map could be very tall
+    if (tY + 60 > H - margin - 20) {
+        doc.addPage();
+        generatePageBorder();
+        addHeader("MARMA IDENTIFICATION Table", "Detailed Body Mapping");
+        tY = cy;
+    }
 
-    let tY = cy + 10;
     const tGroupW = (W - 2 * margin - 10) / 3;
     
     // Header
-    doc.setFillColor(245, 247, 250);
-    doc.rect(margin + 2, tY, W - 2*margin - 4, 10, "F");
+    doc.setFillColor(242, 242, 242);
+    doc.rect(margin + 2, tY, W - 2*margin - 4, 8, "F");
     doc.setFontSize(7.5);
-    doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
 
     for (let g = 0; g < 3; g++) {
         const oX = margin + 5 + g * tGroupW;
-        doc.text("Point", oX, tY + 6);
-        doc.text("Body Part / Organ", oX + 11, tY + 6);
-        doc.text("Zones", oX + tGroupW - 14, tY + 6);
+        doc.text("Point", oX, tY + 5.5);
+        doc.text("Body Part", oX + 11, tY + 5.5);
+        doc.text("Zones", oX + tGroupW - 14, tY + 5.5);
     }
-    tY += 12;
+    tY += 8;
 
-    doc.setFont("helvetica", "normal");
+    // Remove text color override so body is dark text
+    doc.setTextColor(30, 30, 30);
     marmaTableData.forEach((row, i) => {
         if (i % 2 === 0) {
-            doc.setFillColor(252, 253, 255);
-            doc.rect(margin + 2, tY - 3, W - 2*margin - 4, 8, "F");
+            doc.setFillColor(250, 250, 250);
+            doc.rect(margin + 2, tY, W - 2*margin - 4, 6, "F");
         }
 
         const drawCol = (oX: number, p: string, b: string, z: string) => {
             doc.setFont("helvetica", "bold");
-            doc.text(p, oX, tY + 2);
+            doc.text(p, oX, tY + 4);
             doc.setFont("helvetica", "normal");
-            doc.text(b, oX + 11, tY + 2);
-            doc.text(z, oX + tGroupW - 14, tY + 2);
+            doc.text(b, oX + 11, tY + 4);
+            doc.text(z, oX + tGroupW - 14, tY + 4);
         };
 
         drawCol(margin + 5, row.p1, row.b1, row.z1);
         drawCol(margin + 5 + tGroupW, row.p2, row.b2, row.z2);
         drawCol(margin + 5 + 2*tGroupW, row.p3, row.b3, row.z3);
 
-        tY += 8;
+        tY += 6;
+        
+        // Very subtle row border
+        doc.setDrawColor(230, 230, 230);
+        doc.setLineWidth(0.1);
+        doc.line(margin + 2, tY, W - margin - 2, tY);
     });
 
-
     // ==========================================
-    // PAGE 6: ZONE ANALYSIS
+    // PAGE 5: ZONE ANALYSIS
     // ==========================================
     doc.addPage();
     generatePageBorder();
     addHeader("ZONE ANALYSIS", "Spatial Distribution & Area Strengths");
 
-    // Full-width map — use the same mw/mh as other map pages
-    doc.setDrawColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
-    doc.setFillColor(250, 248, 245);
-    doc.rect(cw - 2, cy - 2, mw + 4, mh + 4, "FD");
     doc.addImage(imgZones, "JPEG", cw, cy, mw, mh);
 
-    if (cy + mh + 10 < H - margin - 20) {
-        doc.setFont("helvetica", "italic");
-        doc.setFontSize(8.5);
-        doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
-        doc.text("16 Vastu zones — proportional area distribution across the property.", margin + 6, cy + mh + 10);
+    {
+        let chartY = cy + mh + 10;
+        let maxAllowed = (H - margin - 15) - chartY - 2;
+        if (maxAllowed < 35) {
+            doc.addPage();
+            generatePageBorder();
+            addHeader("ZONE ANALYSIS", "Spatial Distribution & Area Strengths");
+            chartY = margin + 30;
+            maxAllowed = (H - margin - 15) - chartY - 2;
+        }
+        const chartH = Math.max(35, Math.min(65, maxAllowed));
+        const chartW = mw;
+        const cwGraph = cw;
+
+        const internalOrder = ["NNW", "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW"];
+        const directionMap: Record<string, string> = {
+            "N": "North", "E": "East", "S": "South", "W": "West"
+        };
+
+        let chartData: { dir: string; label: string; val: number }[] = [];
+        if (analysis.zoneResults && analysis.zoneResults.length > 0) {
+             internalOrder.forEach(dir => {
+                 const match = analysis.zoneResults!.find(z => z.direction === dir);
+                 chartData.push({ dir, label: directionMap[dir] || dir, val: match ? match.areaReal : 0 });
+             });
+        } else {
+             internalOrder.forEach(dir => {
+                 const match = analysis.evaluations.find(e => e.direction === dir);
+                 chartData.push({ dir, label: directionMap[dir] || dir, val: match ? match.areaPercent : 0 });
+             });
+        }
+        
+        const vals = chartData.map(d => d.val);
+        const minVal = Math.min(...vals.filter(v => v > 0)); // avoid 0 if some empty
+        const maxVal = Math.max(...vals, 1);
+        const avgVal = vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
+        
+        // Target Axis maximum
+        const maxAxis = Math.ceil(maxVal * 1.2 / 5) * 5; 
+        
+        const graphAreaW = chartW - 20;
+        const graphAreaH = chartH - 20;
+        const startX = cwGraph + 15;
+        const startY = chartY + 5;
+        const barW = graphAreaW / 16;
+        
+        doc.setFont("helvetica", "normal");
+        
+        // Draw horizontal grid lines and Y Axis values
+        const ticks = 5;
+        doc.setFontSize(6);
+        for(let i = 0; i < ticks; i++) {
+             const tVal = (maxAxis / (ticks-1)) * i;
+             const ty = startY + graphAreaH - (tVal / maxAxis) * graphAreaH;
+             doc.setDrawColor(240, 240, 240);
+             doc.setLineWidth(0.1);
+             doc.line(startX, ty, startX + graphAreaW, ty);
+             doc.setTextColor(100, 100, 100);
+             doc.text(tVal.toFixed(1), startX - 2, ty + 2, { align: "right" });
+        }
+        
+        // Y Axis Label
+        doc.setTextColor(100, 100, 100);
+        doc.text("Area (sq. ft)", startX - 10, startY + graphAreaH / 2 + 5, { angle: 90 });
+
+        // Draw Y=0 explicitly solid
+        doc.setDrawColor(100, 100, 100);
+        doc.setLineWidth(0.3);
+        doc.line(startX, startY + graphAreaH, startX + graphAreaW, startY + graphAreaH); // X axis line
+        doc.line(startX, startY, startX, startY + graphAreaH); // Y axis solid line
+
+        // Draw dashed lines function
+        const drawDashedLine = (val: number, color: number[]) => {
+             const ly = startY + graphAreaH - (val / maxAxis) * graphAreaH;
+             doc.setDrawColor(color[0], color[1], color[2]);
+             doc.setLineWidth(0.2);
+             for (let x = startX; x < startX + graphAreaW; x += 3) {
+                  doc.line(x, ly, Math.min(x + 1.5, startX + graphAreaW), ly);
+             }
+        };
+        
+        // Draw Min, Avg, Max dashed lines
+        drawDashedLine(minVal, [100, 150, 250]); // Blue min
+        drawDashedLine(avgVal, [50, 200, 50]);   // Green avg
+        drawDashedLine(maxVal, [250, 100, 100]); // Red max
+
+        // Draw Bars
+        chartData.forEach((d, i) => {
+            const h = (d.val / maxAxis) * graphAreaH;
+            const bx = startX + i * barW;
+            const by = startY + graphAreaH - h;
+            
+            doc.setFillColor(DIRECTION_COLORS[d.dir as VastuDirection] || "#666");
+            doc.rect(bx + 1, by, barW - 2.5, h, "F");
+            
+            // Difference from avg text
+            const diff = d.val - avgVal;
+            const diffText = (diff > 0 ? "+" : "") + diff.toFixed(2);
+            if (diff > 0) doc.setTextColor(0, 160, 0);
+            else doc.setTextColor(200, 50, 50);
+            
+            doc.setFontSize(5);
+            doc.setFont("helvetica", "bold");
+            doc.text(diffText, bx + barW/2 - 0.5, by - 1.5, { align: "center" });
+            
+            // X-Axis Labels — negative angle rotates clockwise so text hangs downward
+            doc.setTextColor(80, 80, 80);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(5);
+            doc.text(d.label, bx + barW/2, startY + graphAreaH + 3, { angle: -45 });
+        });
+        
+        // Legend at bottom
+        const legendY = startY + graphAreaH + 15;
+        doc.setFontSize(6.5);
+        doc.setFont("helvetica", "bold");
+        doc.setLineWidth(0.3);
+        
+        const lw = graphAreaW / 3;
+        
+        // Min
+        doc.setDrawColor(40, 120, 230);
+        for (let x = startX + lw*0.2; x < startX + lw*0.2 + 8; x += 2) doc.line(x, legendY - 1, x+1, legendY - 1);
+        doc.setTextColor(80, 100, 130);
+        doc.text(`Min. (${minVal.toFixed(2)})`, startX + lw*0.2 + 10, legendY);
+        
+        // Avg
+        doc.setDrawColor(50, 200, 50);
+        for (let x = startX + lw*1.2; x < startX + lw*1.2 + 8; x += 2) doc.line(x, legendY - 1, x+1, legendY - 1);
+        doc.setTextColor(80, 130, 80);
+        doc.text(`Avg. (${avgVal.toFixed(2)})`, startX + lw*1.2 + 10, legendY);
+        
+        // Max
+        doc.setDrawColor(230, 80, 80);
+        for (let x = startX + lw*2.2; x < startX + lw*2.2 + 8; x += 2) doc.line(x, legendY - 1, x+1, legendY - 1);
+        doc.setTextColor(130, 80, 80);
+        doc.text(`Max. (${maxVal.toFixed(2)})`, startX + lw*2.2 + 10, legendY);
     }
 
     // ==========================================
-    // PAGE 7: DEVTA ANALYSIS — full-page map, no bar chart
+    // PAGE 6: DEVTA ANALYSIS & CHART
     // ==========================================
     if (analysis.devtaAreas && analysis.devtaAreas.length > 0) {
         doc.addPage();
         generatePageBorder();
         addHeader("DEVTA ANALYSIS", "32 Outer Devta Energy Fields");
 
-        // Use full available width & smart height cap same as other pages
-        doc.setDrawColor(COLOR_ACCENT[0], COLOR_ACCENT[1], COLOR_ACCENT[2]);
-        doc.setFillColor(250, 248, 245);
-        doc.rect(cw - 2, cy - 2, mw + 4, mh + 4, "FD");
         doc.addImage(imgDevtas, "JPEG", cw, cy, mw, mh);
 
-        if (cy + mh + 10 < H - margin - 20) {
-            doc.setFont("helvetica", "italic");
-            doc.setFontSize(8.5);
-            doc.setTextColor(COLOR_TEXT[0], COLOR_TEXT[1], COLOR_TEXT[2]);
-            doc.text("32 outer Devta energy fields — Vastu Purusha Mandala mapped on floor plan.", margin + 6, cy + mh + 10);
+        {
+            let chartY = cy + mh + 10;
+            let maxAllowed = (H - margin - 15) - chartY - 2;
+            if (maxAllowed < 45) {
+                doc.addPage();
+                generatePageBorder();
+                addHeader("DEVTA ANALYSIS", "32 Outer Devta Energy Fields");
+                chartY = margin + 30;
+                maxAllowed = (H - margin - 15) - chartY - 2;
+            }
+            const chartH = Math.max(45, Math.min(75, maxAllowed));
+            const chartW = mw;
+            
+            const devtaOrder = [
+                "Shikhi", "Prajanya", "Jayant", "Mahender", "Surya", "Satya", "Bhrisha", "Antriksh",
+                "Anil", "Pusha", "Vitasta", "Grispatya", "Yama", "Gandharav", "Bhrigraj", "Mrighah",
+                "Pitr", "Dauwarik", "Sugreev", "Pushpdant", "Varun", "Asur", "Shosha", "Papyakshma",
+                "Roga", "Ahir", "Mukhya", "Bhallat", "Soma", "Bhujang", "Aditi", "Diti"
+            ];
+            
+            const devtaColors: Record<string, string> = {
+                "Roga": "#cfe2f3", "Ahir": "#cfe2f3", "Mukhya": "#cfe2f3", "Bhallat": "#cfe2f3",
+                "Soma": "#9fc5e8", "Bhujang": "#d9d2e9", "Aditi": "#d9d2e9", "Diti": "#d9d2e9",
+                "Shikhi": "#a2c4c9", "Prajanya": "#a2c4c9", "Jayant": "#b6d7a8", "Mahender": "#b6d7a8",
+                "Surya": "#b6d7a8", "Satya": "#b6d7a8", "Bhrisha": "#d5a6bd", "Antriksh": "#d5a6bd",
+                "Anil": "#ea9999", "Pusha": "#ea9999", "Vitasta": "#ea9999", "Grispatya": "#ea9999",
+                "Yama": "#ea9999", "Gandharav": "#f9cb9c", "Bhrigraj": "#ffe599", "Mrighah": "#d9d2e9",
+                "Pitr": "#d9d2e9", "Dauwarik": "#d9d2e9", "Sugreev": "#d9d2e9", "Pushpdant": "#d9d2e9",
+                "Varun": "#d9d2e9", "Asur": "#d9d2e9", "Shosha": "#cfe2f3", "Papyakshma": "#cfe2f3"
+            };
+
+            const rawData = analysis.devtaAreas || [];
+            let chartData: { label: string; val: number }[] = [];
+            
+            if (rawData.length > 0) {
+                devtaOrder.forEach(dName => {
+                    const match = rawData.find(d => d.name === dName);
+                    chartData.push({ label: dName, val: match ? match.areaReal : 0 });
+                });
+
+                const vals = chartData.map(d => d.val);
+                const minVal = Math.min(...vals.filter(v => v > 0)); // Avoid 0
+                const maxVal = Math.max(...vals, 1);
+                const avgVal = vals.reduce((a, b) => a + b, 0) / (vals.length || 1);
+                
+                // Target Axis max
+                const maxAxis = Math.ceil(maxVal * 1.2 / 5) * 5; 
+                
+                const graphAreaW = chartW - 20;
+                const graphAreaH = chartH - 25; // plenty of extra bottom padding for long rotated text
+                const startX = cw + 15;
+                const startY = chartY + 5;
+                const barW = graphAreaW / chartData.length;
+                
+                doc.setFont("helvetica", "normal");
+                
+                // Y Axis Ticks
+                const ticks = 6;
+                doc.setFontSize(6);
+                for(let i = 0; i < ticks; i++) {
+                     const tVal = (maxAxis / (ticks-1)) * i;
+                     const ty = startY + graphAreaH - (tVal / maxAxis) * graphAreaH;
+                     doc.setDrawColor(245, 245, 245);
+                     doc.setLineWidth(0.1);
+                     doc.line(startX, ty, startX + graphAreaW, ty);
+                     doc.setTextColor(110, 110, 110);
+                     doc.text(tVal.toFixed(1), startX - 2, ty + 2, { align: "right" });
+                }
+                
+                // Y Axis Label
+                doc.setTextColor(100, 100, 100);
+                doc.text("Area (sq. ft)", startX - 10, startY + graphAreaH / 2 + 5, { angle: 90 });
+
+                // Axes lines
+                doc.setDrawColor(100, 100, 100);
+                doc.setLineWidth(0.3);
+                doc.line(startX, startY + graphAreaH, startX + graphAreaW, startY + graphAreaH);
+                doc.line(startX, startY, startX, startY + graphAreaH);
+
+                // Dashed line util
+                const drawDashedLine = (val: number, color: number[]) => {
+                     const ly = startY + graphAreaH - (val / maxAxis) * graphAreaH;
+                     doc.setDrawColor(color[0], color[1], color[2]);
+                     doc.setLineWidth(0.2);
+                     for (let x = startX; x < startX + graphAreaW; x += 3) {
+                          doc.line(x, ly, Math.min(x + 1.5, startX + graphAreaW), ly);
+                     }
+                };
+                
+                // Draw Dashes
+                drawDashedLine(minVal, [100, 150, 250]); // Blue min
+                drawDashedLine(avgVal, [50, 200, 50]);   // Green avg
+                drawDashedLine(maxVal, [250, 100, 100]); // Red max
+
+                // Draw Bars
+                chartData.forEach((d, i) => {
+                    const h = (d.val / maxAxis) * graphAreaH;
+                    const bx = startX + i * barW;
+                    const by = startY + graphAreaH - h;
+                    
+                    doc.setFillColor(devtaColors[d.label] || "#e3e3e3");
+                    doc.rect(bx + 0.5, by, barW - 1, h, "F");
+                    
+                    // X Labels — negative angle rotates clockwise so text hangs downward
+                    doc.setFontSize(5);
+                    doc.setFont("helvetica", "normal");
+                    doc.setTextColor(80, 80, 80);
+                    doc.text(d.label, bx + barW/2, startY + graphAreaH + 3, { angle: -45 });
+                });
+                
+                // Legend at bottom (pushed down to clear diagonal labels)
+                const legendY = startY + graphAreaH + 22;
+                doc.setFontSize(6.5);
+                doc.setFont("helvetica", "bold");
+                doc.setLineWidth(0.3);
+                
+                const lw = graphAreaW / 3;
+                
+                // Min
+                doc.setDrawColor(40, 120, 230);
+                for (let x = startX + lw*0.1; x < startX + lw*0.1 + 8; x += 2) doc.line(x, legendY - 1, x+1, legendY - 1);
+                doc.setTextColor(80, 100, 130);
+                doc.text(`Min. (${minVal.toFixed(2)})`, startX + lw*0.1 + 10, legendY);
+                
+                // Avg
+                doc.setDrawColor(50, 200, 50);
+                for (let x = startX + lw*1.1; x < startX + lw*1.1 + 8; x += 2) doc.line(x, legendY - 1, x+1, legendY - 1);
+                doc.setTextColor(80, 130, 80);
+                doc.text(`Avg. (${avgVal.toFixed(2)})`, startX + lw*1.1 + 10, legendY);
+                
+                // Max
+                doc.setDrawColor(230, 80, 80);
+                for (let x = startX + lw*2.1; x < startX + lw*2.1 + 8; x += 2) doc.line(x, legendY - 1, x+1, legendY - 1);
+                doc.setTextColor(130, 80, 80);
+                doc.text(`Max. (${maxVal.toFixed(2)})`, startX + lw*2.1 + 10, legendY);
+            }
         }
     }
 
     // ==========================================
-    // PAGE 8: PLACEMENT & REMEDIES
+    // PAGE 7: PLACEMENT & REMEDIES
     // ==========================================
     doc.addPage();
     generatePageBorder();
@@ -541,23 +844,23 @@ export async function generateReport(data: ReportData): Promise<void> {
     let placementY = cy;
 
     const drawTableHeader = (y: number) => {
-        doc.setFillColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
-        doc.rect(margin + 2, y, W - 2*margin - 4, 10, "F");
+        doc.setFillColor(242, 242, 242);
+        doc.rect(margin + 2, y, W - 2*margin - 4, 8, "F");
         
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(255, 255, 255);
-        doc.text("OBJECT / ACTIVITY", margin + 6, y + 6);
-        doc.text("ZONE", margin + 50, y + 6);
-        doc.text("DETAILS & REMEDY", margin + 80, y + 6);
-        return y + 10;
+        doc.setFontSize(7.5);
+        doc.setTextColor(COLOR_PRIMARY[0], COLOR_PRIMARY[1], COLOR_PRIMARY[2]);
+        doc.text("OBJECT / ACTIVITY", margin + 6, y + 5.5);
+        doc.text("ZONE", margin + 50, y + 5.5);
+        doc.text("DETAILS & REMEDY", margin + 80, y + 5.5);
+        return y + 8;
     };
 
     placementY = drawTableHeader(placementY);
 
     analysis.placedItems.forEach((item, index) => {
         if (index % 2 === 0) {
-            doc.setFillColor(250, 248, 245);
+            doc.setFillColor(250, 250, 250);
         } else {
             doc.setFillColor(255, 255, 255);
         }
@@ -582,11 +885,11 @@ export async function generateReport(data: ReportData): Promise<void> {
         if (placementY + rowH > H - margin - 20) {
             doc.addPage();
             generatePageBorder();
-            placementY = margin + 20; // reset y
+            placementY = cy; // reset y
             placementY = drawTableHeader(placementY);
             
             // Reapply alternating bg for new page top row
-            if (index % 2 === 0) doc.setFillColor(250, 248, 245);
+            if (index % 2 === 0) doc.setFillColor(250, 250, 250);
             else doc.setFillColor(255, 255, 255);
         }
 
